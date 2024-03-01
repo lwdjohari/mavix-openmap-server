@@ -84,23 +84,39 @@ target_include_directories(utf8cpp
         deps/utfcpp-4.0.4/source/
 )
 
+# Add zlib from deps/zlib
+add_subdirectory(deps/zlib-1.2.11 build-zlib)
+
+# Add lz4 from deps/lz4-1.9.4
+set (${LZ4_BUNDLED_MODE} ON)
+add_subdirectory(deps/lz4-1.9.4/build/cmake build-lz4)
+
+# Add tinyxml from deps/tinyxml2-9.0.0
+add_subdirectory(deps/tinyxml2-9.0.0 build-tinyxml2)
+
 # nvm nvm::core
 add_subdirectory(deps/nvm-core build-nvm-core)
 
+# nvm mavix::core
+add_subdirectory(libs/mavix-core build-mavix-core)
+
+# nvm mavix::utils
+add_subdirectory(libs/mavix-utils build-mavix-utils)
+
 # nvm mavix::osm
-add_subdirectory(deps/mavix-osm build-mavix-osm)
+add_subdirectory(libs/mavix-osm build-mavix-osm)
 
 # nvm mavix::storage
-add_subdirectory(deps/mavix-storage build-mavix-storage)
+add_subdirectory(libs/mavix-storage build-mavix-storage)
 
 # nvm mavix::spatial
-add_subdirectory(deps/mavix-spatial build-mavix-spatial)
+add_subdirectory(libs/mavix-spatial build-mavix-spatial)
 
 # nvm mavix::tiles
-add_subdirectory(deps/mavix-tiles build-mavix-tiles)
+add_subdirectory(libs/mavix-tiles build-mavix-tiles)
 
 # nvm mavix::renderer
-add_subdirectory(deps/mavix-renderer build-mavix-renderer)
+add_subdirectory(libs/mavix-renderer build-mavix-renderer)
 
 
 
