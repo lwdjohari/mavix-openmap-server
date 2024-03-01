@@ -1,7 +1,12 @@
 #pragma once
 
+#ifndef MAVIX_ALLOCATOR_JEMALLOC
+#define MAVIX_ALLOCATOR_JEMALLOC
+#endif
+
 #include <cstdint>
 #include <memory>
+#include "mavix/v1/core/memory/memory_allocator.h"
 
 namespace mavix {
 namespace v1 {
@@ -10,12 +15,14 @@ namespace core {
     {
     private:
         size_t size_;
-        std::allocator <uint8_t> buffer_;
+        memory::MemoryAllocator<uint8_t> buffer_;
         uint8_t* begin_;
         uint8_t* end_;
         uint8_t* data_;
         uint64_t id_;
         bool is_allocated_;
+
+    void Initialize();
 
     public:
         SharedBuffer(uint64_t id, size_t buffer_size);
@@ -39,6 +46,8 @@ namespace core {
 
     bool IsAllocated() const;
     void Destroy();
+
+    memory::AllocatorType AllocatorType() const;
     
     };
     

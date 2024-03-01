@@ -66,10 +66,43 @@ endif()
 
 # Add dependencies source code
 
+# Add support for mavix memory allocator using jemalloc or google-arena (tcmalloc) support
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/memory-allocator-build.cmake)
+# Build jemalloc
+JEMallocBuild(
+    SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/jemalloc-5.3.0"
+    PREFIX "${CMAKE_CURRENT_BINARY_DIR}/jemalloc_build"
+)
+
+# Build TCMalloc
+# TCMallocBuild(
+#     SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/gperftools-2.15"
+#     PREFIX "${CMAKE_CURRENT_BINARY_DIR}/tcmalloc_build"
+# )
+
+# Create interface libraries
+add_library(JEMallocInterface INTERFACE)
+add_dependencies(JEMallocInterface JEMallocProject)
+
+# add_library(TCMallocInterface INTERFACE)
+# add_dependencies(TCMallocInterface TCMallocProject)
+
+
+# Add JEMALLOC and TCMALLOC include directories
+
+set(JEMALLOC_INCLUDE "${CMAKE_CURRENT_SOURCE_DIR}/deps/jemalloc-5.3.0/include")
+set (TCMALLOC_INCLUDE "${CMAKE_CURRENT_SOURCE_DIR}/deps/gperftools-2.15/src")
+set(JEMALLOC_LIB "${CMAKE_CURRENT_SOURCE_DIR}/deps/jemalloc-5.3.0/lib/libjemalloc.a")
+set (TCMALLOC_LIB "${CMAKE_CURRENT_SOURCE_DIR}/deps/gperftools-2.15/.libs/libtcmalloc.a")
+
+find_library(JEMALLOC_LIBRARY NAMES jemalloc libjemalloc PATHS ${CMAKE_CURRENT_SOURCE_DIR}/deps/jemalloc-5.3.0/lib)
+find_library(TCMALLOC_LIBRARY NAMES tcmalloc libtcmalloc PATHS ${CMAKE_CURRENT_SOURCE_DIR}/deps/gperftools-2.15/.libs)
+
+message("JEMALLOC LIB: ${JEMALLOC_LIBRARY}")
+message("TCMALLOC LIB: ${TCMALLOC_LIBRARY}")
+
 # Google Abseil
 add_subdirectory(deps/abseil-20230802.1 build-abseil)
-
-
 
 # UTF8-CPP source code
 file(GLOB_RECURSE SOURCES_UTF8CPP CONFIGURE_DEPENDS

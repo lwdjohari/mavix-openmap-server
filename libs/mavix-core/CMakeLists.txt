@@ -60,6 +60,9 @@ endif()
 
 # Add dependencies source code
 
+
+
+
 # Main headers and sources
 file(GLOB_RECURSE SOURCES_MAVIX_CORE CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/src/*.h
@@ -68,22 +71,28 @@ file(GLOB_RECURSE SOURCES_MAVIX_CORE CONFIGURE_DEPENDS
 )
 
 add_library(${PROJECT_NAME} ${SOURCES_MAVIX_CORE} )
+# add_dependencies(${PROJECT_NAME} TCMallocProject)
 target_link_libraries(${PROJECT_NAME} 
+    # TCMALLOC_LIBRARY
+    "${JEMALLOC_LIB}"
     nvm-core
-    absl::base 
-    absl::flat_hash_map 
-    absl::algorithm
-    absl::numeric
-    absl::random_random
-    absl::synchronization 
-    absl::strings
-    absl::time
-    absl::utility)
+    # absl::base 
+    # absl::flat_hash_map 
+    # absl::algorithm
+    # absl::numeric
+    # absl::random_random
+    # absl::synchronization 
+    # absl::strings
+    # absl::time
+    # absl::utility
+)
 
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 target_include_directories(${PROJECT_NAME}
     PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/
+    ${JEMALLOC_INCLUDE}
+    ${TCMALLOC_INCLUDE}
 )
 
 
