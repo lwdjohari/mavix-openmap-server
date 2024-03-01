@@ -1,0 +1,153 @@
+cmake_minimum_required(VERSION 3.10)
+project(mavix CXX)
+
+message( "MAVIX v2")
+message( "-----------------------------")
+message(STATUS "MAVIX LIB DIR:${CMAKE_CURRENT_SOURCE_DIR}")
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
+set(ABSL_PROPAGATE_CXX_STD ON)
+
+option(LIB_MAVIX_BUILD_DOC "Build documentation" OFF)
+option(LIB_MAVIX_SANITIZE_ADDRESS "SANITIZE ADDRESS" OFF)
+option(LIB_MAVIX_USE_CATCH ON)
+option(LIB_MAVIX_USE_LIB ON)
+option(LIB_MAVIX_USE_TEST OFF)
+
+set(LIB_MAVIX_BUILD_DOC OFF)
+set(LIB_MAVIX_SANITIZE_ADDRESS OFF)
+set(LIB_MAVIX_USE_CATCH ON)
+set(LIB_MAVIX_USE_LIB ON)
+set(LIB_MAVIX_USE_TEST OFF)
+
+# Add ASAN
+if(LIB_MAVIX_SANITIZE_ADDRESS)
+    set(SANITIZE_ADDRESS ON)
+endif(LIB_MAVIX_SANITIZE_ADDRESS)
+
+#  make ourself sanitize and sane well.
+if(NOT SANITIZE_ADDRESS)
+ find_package(Sanitizers)
+endif()
+
+# Add Doxygen
+if(LIB_MAVIX_BUILD_DOC)
+    if(NOT DOXYGEN_FOUND)
+        find_package(Doxygen)
+    endif()
+
+    if (DOXYGEN_FOUND)
+        # set input and output files
+        set(DOXYGEN_IN ${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile.in)
+        set(DOXYGEN_OUT ${CMAKE_CURRENT_SOURCE_DIR}/generated/docs-cached/Doxyfile)
+
+        # request to configure the file
+        configure_file(${DOXYGEN_IN} ${DOXYGEN_OUT} @ONLY)
+        message("Doxygen build started")
+
+         # note the option ALL which allows to build the docs together with the application
+        add_custom_target( doc_mavix ALL
+            COMMAND ${DOXYGEN_EXECUTABLE} ${DOXYGEN_OUT}
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/generated/docs-cached/
+            COMMENT "Generating API documentation with Doxygen"
+            VERBATIM )
+    else (DOXYGEN_FOUND)
+        message("Doxygen need to be installed to generate the doxygen documentation")
+    endif (DOXYGEN_FOUND)
+endif(LIB_MAVIX_BUILD_DOC)
+
+# Add Unit Test Lib Catch2
+if(LIB_MAVIX_USE_CATCH)
+ message(STATUS  "CATCH2::ADD_LIB.")
+ find_package(Catch2 3 REQUIRED)
+endif()
+
+# Add dependencies source code
+
+# Google Abseil
+add_subdirectory(deps/abseil-20230802.1 build-abseil)
+
+
+
+# UTF8-CPP source code
+file(GLOB_RECURSE SOURCES_UTF8CPP CONFIGURE_DEPENDS
+    ${CMAKE_CURRENT_SOURCE_DIR}/deps/utfcpp-4.0.4/source/*.h
+)
+
+add_library(utf8cpp ${SOURCES_UTF8CPP})
+set_target_properties(utf8cpp PROPERTIES LINKER_LANGUAGE CXX)
+target_compile_features(utf8cpp PUBLIC cxx_std_17)
+target_include_directories(utf8cpp
+    PUBLIC
+        deps/utfcpp-4.0.4/source/
+)
+
+# nvm nvm::core
+add_subdirectory(deps/nvm-core build-nvm-core)
+
+# nvm mavix::osm
+add_subdirectory(deps/mavix-osm build-mavix-osm)
+
+# nvm mavix::storage
+add_subdirectory(deps/mavix-storage build-mavix-storage)
+
+# nvm mavix::spatial
+add_subdirectory(deps/mavix-spatial build-mavix-spatial)
+
+# nvm mavix::tiles
+add_subdirectory(deps/mavix-tiles build-mavix-tiles)
+
+# nvm mavix::renderer
+add_subdirectory(deps/mavix-renderer build-mavix-renderer)
+
+
+
+# Main headers and sources
+file(GLOB_RECURSE SOURCES_MAVIX CONFIGURE_DEPENDS
+    ${CMAKE_CURRENT_SOURCE_DIR}/mavix/*.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/mavix/*.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/mavix/*.s
+)
+
+add_library(${PROJECT_NAME}  ${SOURCES_MAVIX} )
+target_link_libraries(${PROJECT_NAME} 
+    utf8cpp
+    nvm-core
+    absl::base 
+    absl::flat_hash_map 
+    absl::algorithm
+    absl::numeric
+    absl::random_random
+    absl::synchronization 
+    absl::strings
+    absl::time
+    absl::utility)
+
+target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
+target_include_directories(${PROJECT_NAME}
+    PUBLIC
+        mavix/
+)
+
+
+add_executable(${PROJECT_NAME}-server main.cc)
+if(SANITIZE_ADDRESS AND Sanitizers_FOUND)
+    add_sanitizers("${PROJECT_NAME}-server")
+    message(STATUS "${PROJECT_NAME}-server_LIB::ASAN:ON.")
+endif()
+
+target_link_libraries(${PROJECT_NAME}-server PRIVATE  ${PROJECT_NAME} )
+target_include_directories("${PROJECT_NAME}-server"
+    PUBLIC
+        mavix/
+)
+
+if(LIB_MAVIX_USE_TEST)
+    message(STATUS "TEST::ADD_UNIT_TEST.")
+    add_subdirectory(tests)
+endif()       
+
+message(STATUS "Mavix LIB Configuration Done!\n")
+set(mavix_FOUND  ON)

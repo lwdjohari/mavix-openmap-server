@@ -1,0 +1,7 @@
+[submodule "deps/nvm-core"]
+	path = deps/nvm-core
+	url = git@github.com:lwdjohari/nvm-core.git
+[submodule "deps/abseil-20230802.1"]
+	path = deps/abseil-20230802.1
+	url = git@github.com:abseil/abseil-cpp.git
+	branch = lts_2023_08_02
