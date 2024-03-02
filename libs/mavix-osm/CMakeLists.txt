@@ -97,20 +97,14 @@ target_link_libraries(${PROJECT_NAME}
     nvm-core
     tinyxml2 
     protobuf::libprotobuf 
-    absl::base 
-    absl::flat_hash_map 
-    absl::algorithm
-    absl::numeric
-    absl::random_random
-    absl::synchronization 
-    absl::strings
-    absl::time
-    absl::utility)
+    mavix-core-v1
+    )
 
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 target_include_directories(${PROJECT_NAME}
     PUBLIC
         src/
+        libs/
 )
 
 
@@ -124,6 +118,7 @@ target_link_libraries(${PROJECT_NAME}-test PRIVATE  ${PROJECT_NAME} )
 target_include_directories("${PROJECT_NAME}-test"
     PUBLIC
         src/
+        libs/
 )
 
 if(LIB_MAVIX_OSM_USE_TEST)
