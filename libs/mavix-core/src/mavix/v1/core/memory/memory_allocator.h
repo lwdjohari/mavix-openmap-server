@@ -10,6 +10,7 @@
 
 #if defined(MAVIX_ALLOCATOR_GOOGLE_ARENA)
 #include <gperftools/tcmalloc.h>
+// #include <gperftools/malloc_hook.h>
 #elif defined(MAVIX_ALLOCATOR_JEMALLOC)
 
 #ifndef JEMALLOC_MANGLE
