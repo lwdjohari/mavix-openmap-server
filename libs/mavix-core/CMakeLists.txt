@@ -61,8 +61,6 @@ endif()
 # Add dependencies source code
 
 
-
-
 # Main headers and sources
 file(GLOB_RECURSE SOURCES_MAVIX_CORE CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/src/*.h
@@ -71,8 +69,25 @@ file(GLOB_RECURSE SOURCES_MAVIX_CORE CONFIGURE_DEPENDS
 )
 
 add_library(${PROJECT_NAME} ${SOURCES_MAVIX_CORE} )
+
+if (LIB_MAVIX_MEM_ALLOCATOR_TYPE EQUAL 1)
+    set(TCMALLOC_STATIC_LIB "-Wl,--whole-archive ${TCMALLOC_LIB} -Wl,--no-whole-archive")
+    target_link_libraries(${PROJECT_NAME} 
+        ${TCMALLOC_STATIC_LIB}
+        nvm-core
+        absl::base 
+        absl::flat_hash_map 
+        absl::algorithm
+        absl::numeric
+        absl::random_random
+        absl::synchronization 
+        absl::strings
+        absl::time
+        absl::utility
+    )
+
+elseif (LIB_MAVIX_MEM_ALLOCATOR_TYPE EQUAL 2)
 target_link_libraries(${PROJECT_NAME} 
-    "${TCMALLOC_LIB}"
     "${JEMALLOC_LIB}"
     nvm-core
     absl::base 
@@ -85,6 +100,22 @@ target_link_libraries(${PROJECT_NAME}
     absl::time
     absl::utility
 )
+else()
+    target_link_libraries(${PROJECT_NAME} 
+        nvm-core
+        absl::base 
+        absl::flat_hash_map 
+        absl::algorithm
+        absl::numeric
+        absl::random_random
+        absl::synchronization 
+        absl::strings
+        absl::time
+        absl::utility
+    )
+endif()
+
+
 
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 target_include_directories(${PROJECT_NAME}
