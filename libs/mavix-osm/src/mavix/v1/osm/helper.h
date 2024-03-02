@@ -1,5 +1,7 @@
 #pragma once
 
+#include "mavix/v1/core/core.h"
+
 namespace mavix {
 namespace v1 {
 namespace osm {
