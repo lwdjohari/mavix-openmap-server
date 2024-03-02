@@ -16,11 +16,18 @@ option(LIB_MAVIX_USE_CATCH ON)
 option(LIB_MAVIX_USE_LIB ON)
 option(LIB_MAVIX_USE_TEST OFF)
 
+
+# 0 - std allocator
+# 1 - Google Arena (TcMalloc)
+# 2 - JEMalloc
+option(LIB_MAVIX_MEM_ALLOCATOR_TYPE "Memory Allocator Type" 1)
+
 set(LIB_MAVIX_BUILD_DOC OFF)
 set(LIB_MAVIX_SANITIZE_ADDRESS OFF)
 set(LIB_MAVIX_USE_CATCH ON)
 set(LIB_MAVIX_USE_LIB ON)
 set(LIB_MAVIX_USE_TEST OFF)
+set(LIB_MAVIX_MEM_ALLOCATOR_TYPE 1)
 
 # Add ASAN
 if(LIB_MAVIX_SANITIZE_ADDRESS)
@@ -68,35 +75,48 @@ endif()
 
 # Add support for mavix memory allocator using jemalloc or google-arena (tcmalloc) support
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/memory-allocator-build.cmake)
-# Build jemalloc
-JEMallocBuild(
-    SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/jemalloc-5.3.0"
-    PREFIX "${CMAKE_CURRENT_BINARY_DIR}/jemalloc_build"
-)
-
-# Build TCMalloc
-# TCMallocBuild(
-#     SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/gperftools-2.15"
-#     PREFIX "${CMAKE_CURRENT_BINARY_DIR}/tcmalloc_build"
-# )
-
-# Create interface libraries
-add_library(JEMallocInterface INTERFACE)
-add_dependencies(JEMallocInterface JEMallocProject)
-
-# add_library(TCMallocInterface INTERFACE)
-# add_dependencies(TCMallocInterface TCMallocProject)
-
-
-# Add JEMALLOC and TCMALLOC include directories
-
-set(JEMALLOC_INCLUDE "${CMAKE_CURRENT_SOURCE_DIR}/deps/jemalloc-5.3.0/include")
-set (TCMALLOC_INCLUDE "${CMAKE_CURRENT_SOURCE_DIR}/deps/gperftools-2.15/src")
-set(JEMALLOC_LIB "${CMAKE_CURRENT_SOURCE_DIR}/deps/jemalloc-5.3.0/lib/libjemalloc.a")
-set (TCMALLOC_LIB "${CMAKE_CURRENT_SOURCE_DIR}/deps/gperftools-2.15/.libs/libtcmalloc.a")
 
 find_library(JEMALLOC_LIBRARY NAMES jemalloc libjemalloc PATHS ${CMAKE_CURRENT_SOURCE_DIR}/deps/jemalloc-5.3.0/lib)
 find_library(TCMALLOC_LIBRARY NAMES tcmalloc libtcmalloc PATHS ${CMAKE_CURRENT_SOURCE_DIR}/deps/gperftools-2.15/.libs)
+
+if(NOT JEMALLOC_LIBRARY)
+    # Build jemalloc
+    message("Build: JEMalloc from source")
+    JEMallocBuild(
+        SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/jemalloc-5.3.0"
+        PREFIX "${CMAKE_CURRENT_BINARY_DIR}/jemalloc_build"
+    )
+endif()
+
+if(NOT TCMALLOC_LIBRARY)
+    # Build TCMalloc
+    message("Build: TCMalloc from source")
+    TCMallocBuild(
+        SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/gperftools-2.15"
+        PREFIX "${CMAKE_CURRENT_BINARY_DIR}/tcmalloc_build"
+    )
+endif()
+
+if(LIB_MAVIX_MEM_ALLOCATOR_TYPE EQUAL 2 OR LIB_MAVIX_MEM_ALLOCATOR_TYPE EQUAL 1)
+    # Create interface libraries
+    add_library(JEMallocInterface INTERFACE)
+    add_dependencies(JEMallocInterface JEMallocProject)
+
+    add_library(TCMallocInterface INTERFACE)
+    add_dependencies(TCMallocInterface TCMallocProject)
+
+    set(JEMALLOC_INCLUDE "${CMAKE_CURRENT_SOURCE_DIR}/deps/jemalloc-5.3.0/include")
+    set(JEMALLOC_LIB "${CMAKE_CURRENT_SOURCE_DIR}/deps/jemalloc-5.3.0/lib/libjemalloc.a")
+
+    set (TCMALLOC_INCLUDE "${CMAKE_CURRENT_SOURCE_DIR}/deps/gperftools-2.15/src")
+    set (TCMALLOC_LIB "${CMAKE_CURRENT_SOURCE_DIR}/deps/gperftools-2.15/.libs/libtcmalloc.a")
+endif()
+
+if(LIB_MAVIX_MEM_ALLOCATOR_TYPE EQUAL 1)
+    add_compile_definitions(MAVIX_ALLOCATOR_GOOGLE_ARENA)
+elseif(LIB_MAVIX_MEM_ALLOCATOR_TYPE EQUAL 2)
+    add_compile_definitions(MAVIX_ALLOCATOR_JEMALLOC)
+endif()
 
 message("JEMALLOC LIB: ${JEMALLOC_LIBRARY}")
 message("TCMALLOC LIB: ${TCMALLOC_LIBRARY}")

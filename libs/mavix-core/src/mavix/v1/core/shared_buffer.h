@@ -1,9 +1,5 @@
 #pragma once
 
-#ifndef MAVIX_ALLOCATOR_JEMALLOC
-#define MAVIX_ALLOCATOR_JEMALLOC
-#endif
-
 #include <cstdint>
 #include <memory>
 #include "mavix/v1/core/memory/memory_allocator.h"
