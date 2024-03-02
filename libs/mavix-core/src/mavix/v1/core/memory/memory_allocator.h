@@ -31,10 +31,13 @@ enum class AllocatorType { StdAllocator = 0, GoogleArena = 1, JEMalloc = 2 };
 NVM_ENUM_CLASS_DISPLAY_TRAIT(AllocatorType)
 
 /**
- * @brief Custom memory allocator with flexible change to use Google Arena
- * (TCMalloc) or jemalloc. Allocator selection macros might be defined
- * externally during compilation. #define MAVIX_ALLOCATOR_GOOGLE_ARENA #define
- * MAVIX_ALLOCATOR_JEMALLOC undefinded both of will fallback to STD::ALLOCATOR
+ * Custom memory allocator with flexible change to use Google Arena
+ * (TCMalloc) or jemalloc.
+ * 
+ * Allocator selection macros might be defined externally during build only.
+ * Define macro MAVIX_ALLOCATOR_GOOGLE_ARENA to use TCMalloc.
+ * Define macro MAVIX_ALLOCATOR_JEMALLOC to use JEMalloc.
+ * Undefined both will fallback to std::allocator<T>.
  */
 template <typename T>
 class MemoryAllocator {
@@ -73,7 +76,7 @@ class MemoryAllocator {
 
     if (p == nullptr) {
       handle_error("Memory allocation failed");
-      throw std::bad_alloc(); 
+      throw std::bad_alloc();
     }
 
     return p;
@@ -131,6 +134,75 @@ template <typename T1, typename T2>
 bool operator!=(const MemoryAllocator<T1>&,
                 const MemoryAllocator<T2>&) noexcept {
   return false;
+}
+
+template <typename T>
+struct MemoryAllocatorDeleter {
+  mutable MemoryAllocator<T> allocator;
+
+  // Add a constructor that accepts a MemoryAllocator<T>
+  explicit MemoryAllocatorDeleter(MemoryAllocator<T> alloc)
+      : allocator(std::move(alloc)) {}
+
+  void operator()(T* ptr) const noexcept {
+    try {
+      if (ptr) {
+        ptr->~T();
+        allocator.deallocate(ptr, 1);
+      }
+    } catch (const std::exception& e) {
+      // Log the error, rethrow if necessary, or handle gracefully
+      std::cerr << "MemoryAllocatorDeleter error: " << e.what() << '\n';
+    }
+  }
+};
+
+template <typename T, typename... Args>
+std::unique_ptr<T, MemoryAllocatorDeleter<T>> make_unique_with_allocator(
+    Args&&... args) {
+#if defined(MAVIX_ALLOCATOR_JEMALLOC) || defined(MAVIX_ALLOCATOR_GOOGLE_ARENA)
+  MemoryAllocator<T> allocator;
+  T* ptr = nullptr;
+  try {
+    ptr = allocator.allocate(1);
+    allocator.construct(ptr, std::forward<Args>(args)...);
+  } catch (const std::exception& e) {
+    // Handle or log the allocation error
+    std::cerr << "make_unique_with_allocator error: " << e.what() << '\n';
+    // ensure no memory leak if allocate success
+    if (ptr) {
+      allocator.deallocate(ptr, 1);
+    }
+    throw;
+  }
+  return std::unique_ptr<T, MemoryAllocatorDeleter<T>>(
+      ptr, MemoryAllocatorDeleter<T>(std::move(allocator)));
+#else
+  return std::make_unique<T>(std::forward<Args>(args)...);
+#endif
+}
+
+template <typename T, typename... Args>
+std::shared_ptr<T> make_shared_with_allocator(Args&&... args) {
+#if defined(MAVIX_ALLOCATOR_JEMALLOC) || defined(MAVIX_ALLOCATOR_GOOGLE_ARENA)
+  MemoryAllocator<T> allocator;
+  T* ptr = nullptr;
+  try {
+    ptr = allocator.allocate(1);
+    allocator.construct(ptr, std::forward<Args>(args)...);
+  } catch (const std::exception& e) {
+    std::cerr << "make_shared_with_allocator error: " << e.what() << '\n';
+    // ensure no memory leak if allocate success
+    if (ptr) {
+      allocator.deallocate(ptr, 1);
+    }
+    throw;
+  }
+  return std::shared_ptr<T>(ptr,
+                            MemoryAllocatorDeleter<T>(std::move(allocator)));
+#else
+  return std::make_shared<T>(std::forward<Args>(args)...);
+#endif
 }
 
 }  // namespace memory
