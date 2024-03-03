@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <iostream>
 #include <memory>
-
+#include <cstring>
 #include "mavix/v1/core/core.h"
 
 namespace mavix {
@@ -30,6 +30,7 @@ class SharedBuffer {
     is_allocated_ = true;
     begin_ = data_;
     end_ = data_ + size_;
+    
   }
 
  public:
@@ -76,6 +77,24 @@ class SharedBuffer {
   const uint8_t* CPtr(size_t index) { return data_; }
 
   uint8_t* Data() { return data_; }
+
+  uint8_t* Data(const size_t& pos) {
+    if (data_ + pos >= end_) return nullptr;
+    return data_ + pos;
+  }
+
+  uint8_t* Data(const size_t& pos, const size_t& size) {
+     if (data_ + pos >= end_ || data_ + pos + size > end_) return nullptr;
+    return data_ + pos;
+  }
+
+  bool CopyFrom(const uint8_t* source, const size_t &size){
+    if(!source || !is_allocated_ || size == 0 || size != size_)
+      return false;
+
+    std::memcpy(data_, source, size);
+    return true;
+  }
 
   const uint8_t* CData() const { return data_; }
 
