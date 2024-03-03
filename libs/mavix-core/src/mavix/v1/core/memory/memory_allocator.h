@@ -159,7 +159,7 @@ struct MemoryAllocatorDeleter {
 };
 
 template <typename T, typename... Args>
-std::unique_ptr<T, MemoryAllocatorDeleter<T>> make_unique_with_allocator(
+auto make_unique_with_allocator(
     Args&&... args) {
 #if defined(MAVIX_ALLOCATOR_JEMALLOC) || defined(MAVIX_ALLOCATOR_GOOGLE_ARENA)
   MemoryAllocator<T> allocator;
@@ -184,7 +184,7 @@ std::unique_ptr<T, MemoryAllocatorDeleter<T>> make_unique_with_allocator(
 }
 
 template <typename T, typename... Args>
-std::shared_ptr<T> make_shared_with_allocator(Args&&... args) {
+auto make_shared_with_allocator(Args&&... args) {
 #if defined(MAVIX_ALLOCATOR_JEMALLOC) || defined(MAVIX_ALLOCATOR_GOOGLE_ARENA)
   MemoryAllocator<T> allocator;
   T* ptr = nullptr;
