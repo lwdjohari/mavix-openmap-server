@@ -4,6 +4,7 @@
 
 #include <fstream>
 
+#include "nvm/macro.h"
 #include "mavix/v1/core/shared_buffer.h"
 
 namespace mavix {
@@ -19,6 +20,8 @@ enum class StreamState {
   AlreadyOpen = 5
 };
 
+NVM_ENUM_CLASS_DISPLAY_TRAIT(StreamState)
+
 class Stream {
  private:
   std::ifstream stream_;
@@ -27,7 +30,7 @@ class Stream {
 
  public:
   explicit Stream(const std::string& file)
-      : stream_(nullptr), size_(std::streamsize()), file_(std::string()) {}
+      : stream_(nullptr), size_(std::streamsize()), file_(std::string(file)) {}
   ~Stream() {}
 
   StreamState Open() {
@@ -91,7 +94,8 @@ class Stream {
       return nullptr;
     }
 
-    return buffer;
+    // cppcheck-suppress returnStdMoveLocal
+    return std::move(buffer);
   }
 
   std::streampos MoveTo(std::streampos pos) {
