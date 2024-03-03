@@ -4,8 +4,8 @@
 
 #include <fstream>
 
-#include "nvm/macro.h"
 #include "mavix/v1/core/shared_buffer.h"
+#include "nvm/macro.h"
 
 namespace mavix {
 namespace v1 {
@@ -17,7 +17,9 @@ enum class StreamState {
   FileNotExist = 2,
   IndexOutOfBound = 3,
   PermissionFailed = 4,
-  AlreadyOpen = 5
+  AlreadyOpen = 5,
+  Processing = 6,
+  Stoped = 7
 };
 
 NVM_ENUM_CLASS_DISPLAY_TRAIT(StreamState)
@@ -70,6 +72,25 @@ class Stream {
     if (!stream_.good() || !stream_.is_open()) return std::streampos(-1);
 
     return stream_.tellg();
+  }
+
+  template <typename T>
+  bool CopyToPointer(uint8_t* dest, std::streampos pos, size_t size) {
+    if (!dest || !stream_.good() || !stream_.is_open() || size == 0) return false;
+
+    if (IsOutOfBound(pos, size)) return false;
+
+    if (!stream_.seekg(pos)) {
+      stream_.clear();
+      return false;
+    }
+
+    if (!stream_.read(reinterpret_cast<char*>(dest), size)) {
+      stream_.clear();
+      return false;
+    }
+
+    return true;
   }
 
   template <typename T>
