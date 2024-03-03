@@ -62,7 +62,7 @@ endif()
 
 # Generate OSM protobuffer source code
 
-find_package(Protobuf CONFIG REQUIRED)
+
 include(protobuf-generate)
 
 set(OSM_PROTO_OUTPUT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/libs/osmpbf/)
@@ -72,14 +72,14 @@ set(OSM_PROTO_SRC
     ${CMAKE_CURRENT_SOURCE_DIR}/proto/osmformat.proto
 )
 
-add_library(osmpbf OBJECT "${OSM_PROTO_SRC}")
-target_link_libraries(osmpbf PUBLIC protobuf::libprotobuf)
-target_include_directories(osmpbf PUBLIC "$<BUILD_INTERFACE:${PROTO_BINARY_DIR}>")
+# add_library(osmpbf OBJECT "${OSM_PROTO_SRC}")
+# target_link_libraries(osmpbf PUBLIC protobuf::libprotobuf)
+# target_include_directories(osmpbf PUBLIC "$<BUILD_INTERFACE:${PROTO_BINARY_DIR}>")
 
-protobuf_generate(
-    TARGET osmpbf
-    IMPORT_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/proto/"
-    PROTOC_OUT_DIR "${OSM_PROTO_OUTPUT_DIR}")
+# protobuf_generate(
+#     TARGET osmpbf
+#     IMPORT_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/proto/"
+#     PROTOC_OUT_DIR "${OSM_PROTO_OUTPUT_DIR}")
 
 # copy osm sample to build dir
 set(OSM_EXAMPLE_DATA
@@ -117,10 +117,9 @@ file(GLOB_RECURSE SOURCES_MAVIX_OSM CONFIGURE_DEPENDS
 
 add_library(${PROJECT_NAME} ${SOURCES_MAVIX_OSM} )
 target_link_libraries(${PROJECT_NAME} 
+    mavix-core-v1
     nvm-core
     tinyxml2 
-    protobuf::libprotobuf 
-    mavix-core-v1
     )
 
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)

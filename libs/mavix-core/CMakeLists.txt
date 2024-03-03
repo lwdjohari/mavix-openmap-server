@@ -68,6 +68,7 @@ if (LIB_MAVIX_MEM_ALLOCATOR_TYPE EQUAL 1)
     set(TCMALLOC_STATIC_LIB "-Wl,--whole-archive ${TCMALLOC_LIB} -Wl,--no-whole-archive")
     target_link_libraries(${PROJECT_NAME} 
         ${TCMALLOC_STATIC_LIB}
+        protobuf::libprotobuf 
         nvm-core
         absl::base 
         absl::flat_hash_map 

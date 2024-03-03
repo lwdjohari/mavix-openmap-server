@@ -49,7 +49,7 @@ set(LIB_MAVIX_SANITIZE_ADDRESS OFF)
 set(LIB_MAVIX_USE_CATCH ON)
 set(LIB_MAVIX_USE_LIB ON)
 set(LIB_MAVIX_USE_TEST OFF)
-set(LIB_MAVIX_MEM_ALLOCATOR_TYPE 2)
+set(LIB_MAVIX_MEM_ALLOCATOR_TYPE 1)
 
 # Add ASAN
 if(LIB_MAVIX_SANITIZE_ADDRESS)
@@ -152,6 +152,7 @@ add_compile_definitions(${MAVIX_COMPILE_DEF})
 message(STATUS "Mavix compile flags: ${MAVIX_COMPILE_DEF}" )
 endif()
 
+find_package(Protobuf CONFIG REQUIRED)
 
 # Google Abseil
 message(STATUS "Abseil : Configured")
