@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <iostream>
 #include <memory>
 
 #include "mavix/v1/core/core.h"
@@ -8,7 +9,7 @@
 namespace mavix {
 namespace v1 {
 namespace core {
-    
+
 template <typename TId>
 class SharedBuffer {
  private:
@@ -55,6 +56,11 @@ class SharedBuffer {
     data_ = nullptr;
     begin_ = nullptr;
     end_ = nullptr;
+
+#if defined(MAVIX_DEBUG_CORE) && defined(MAVIX_DEBUG_SHARED_BUFFER)
+    std::cout << "\nDeallocated shared-buffer[" << id_ << "]: " << size_
+              << std::endl;
+#endif
   }
 
   ~SharedBuffer() {
