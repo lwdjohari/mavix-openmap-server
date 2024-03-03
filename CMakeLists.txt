@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 3.10)
 project(mavix CXX)
 
-message( "MAVIX v2")
-message( "-----------------------------")
-message(STATUS "MAVIX LIB DIR:${CMAKE_CURRENT_SOURCE_DIR}")
+message( "MAVIX | Open Map Server v1")
+message( "---------------------------")
+message(STATUS "MAVIX LIB DIR : ${CMAKE_CURRENT_SOURCE_DIR}")
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -16,6 +16,28 @@ option(LIB_MAVIX_USE_CATCH ON)
 option(LIB_MAVIX_USE_LIB ON)
 option(LIB_MAVIX_USE_TEST OFF)
 
+
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
+
+message(STATUS "PROFILE: ${CMAKE_BUILD_TYPE}")
+
+# Compile Def Macro
+set(MAVIX_COMPILE_DEF)
+
+# Activate Debug Trace
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    list(APPEND MAVIX_COMPILE_DEF MAVIX_DEBUG_CORE)
+endif()
+
+# Available trace per object
+# Use below macro in the code, not in CMAKE
+# in the cmake MAVIX_DEBUG_CORE is adequate
+#
+# MAVIX_DEBUG_SHARED_BUFFER -- Print debug state of SharedBuffer<T>
+# MAVIX_DEBUG_STREAM -- Print debug state of Stream
+# MAVIX_DEBUG_MEMORY_ALLOCATOR -- Print debug state of MemoryAllocator<T>
 
 # 0 - std allocator
 # 1 - Google Arena (TcMalloc)
@@ -67,8 +89,12 @@ endif(LIB_MAVIX_BUILD_DOC)
 
 # Add Unit Test Lib Catch2
 if(LIB_MAVIX_USE_CATCH)
- message(STATUS  "CATCH2::ADD_LIB.")
  find_package(Catch2 3 REQUIRED)
+ if(Catch2_FOUND)
+    message(STATUS  "CATCH2 : Found")
+ else()
+    message(STATUS  "CATCH2 : Not Found")
+ endif()
 endif()
 
 # Add dependencies source code
@@ -113,18 +139,26 @@ if(LIB_MAVIX_MEM_ALLOCATOR_TYPE EQUAL 2 OR LIB_MAVIX_MEM_ALLOCATOR_TYPE EQUAL 1)
 endif()
 
 if(LIB_MAVIX_MEM_ALLOCATOR_TYPE EQUAL 1)
-    add_compile_definitions(MAVIX_ALLOCATOR_GOOGLE_ARENA)
+    list(APPEND MAVIX_COMPILE_DEF MAVIX_ALLOCATOR_GOOGLE_ARENA)
 elseif(LIB_MAVIX_MEM_ALLOCATOR_TYPE EQUAL 2)
-    add_compile_definitions(MAVIX_ALLOCATOR_JEMALLOC)
+    list(APPEND MAVIX_COMPILE_DEF MAVIX_ALLOCATOR_JEMALLOC)
 endif()
 
-message("JEMALLOC LIB: ${JEMALLOC_LIBRARY}")
-message("TCMALLOC LIB: ${TCMALLOC_LIBRARY}")
+message(STATUS "JEMALLOC LIB: ${JEMALLOC_LIBRARY}")
+message(STATUS "TCMALLOC LIB: ${TCMALLOC_LIBRARY}")
+
+if(MAVIX_COMPILE_DEF)
+add_compile_definitions(${MAVIX_COMPILE_DEF})
+message(STATUS "Mavix compile flags: ${MAVIX_COMPILE_DEF}" )
+endif()
+
 
 # Google Abseil
+message(STATUS "Abseil : Configured")
 add_subdirectory(deps/abseil-20230802.1 build-abseil)
 
 # UTF8-CPP source code
+message(STATUS "Utf8Cpp : Configured")
 file(GLOB_RECURSE SOURCES_UTF8CPP CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/deps/utfcpp-4.0.4/source/*.h
 )
@@ -138,13 +172,16 @@ target_include_directories(utf8cpp
 )
 
 # Add zlib from deps/zlib
+message(STATUS "zlib : Configured")
 add_subdirectory(deps/zlib-1.2.11 build-zlib)
 
 # Add lz4 from deps/lz4-1.9.4
+message(STATUS "lz4 : Configured")
 set (${LZ4_BUNDLED_MODE} ON)
 add_subdirectory(deps/lz4-1.9.4/build/cmake build-lz4)
 
 # Add tinyxml from deps/tinyxml2-9.0.0
+message(STATUS "TinyXML : Configured")
 add_subdirectory(deps/tinyxml2-9.0.0 build-tinyxml2)
 
 # nvm nvm::core
@@ -179,6 +216,9 @@ file(GLOB_RECURSE SOURCES_MAVIX CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/mavix/*.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/mavix/*.s
 )
+
+
+
 
 add_library(${PROJECT_NAME}  ${SOURCES_MAVIX} )
 target_link_libraries(${PROJECT_NAME} 
@@ -218,5 +258,5 @@ if(LIB_MAVIX_USE_TEST)
     add_subdirectory(tests)
 endif()       
 
-message(STATUS "Mavix LIB Configuration Done!\n")
+message(STATUS "Mavix project configuration done\n")
 set(mavix_FOUND  ON)

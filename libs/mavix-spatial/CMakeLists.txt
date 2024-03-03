@@ -1,13 +1,13 @@
 cmake_minimum_required(VERSION 3.10)
 project(mavix-spatial-v1 CXX)
 
-message( "MVIX::SPATIAL v1")
-message( "-----------------------------")
-message(STATUS "MVIX::SPATIAL v1 LIB DIR:${CMAKE_CURRENT_SOURCE_DIR}")
+# message( "MVIX::SPATIAL v1")
+# message( "-----------------------------")
+# message(STATUS "MVIX::SPATIAL v1 LIB DIR:${CMAKE_CURRENT_SOURCE_DIR}")
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
+# set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 set(ABSL_PROPAGATE_CXX_STD ON)
 
 option(LIB_MAVIX_SPATIAL_BUILD_DOC "Build documentation" OFF)
@@ -52,11 +52,7 @@ if(LIB_MAVIX_SPATIAL_BUILD_DOC)
     endif (DOXYGEN_FOUND)
 endif(LIB_MAVIX_SPATIAL_BUILD_DOC)
 
-# Add Unit Test Lib Catch2
-if(LIB_MAVIX_SPATIAL_USE_CATCH)
- message(STATUS  "CATCH2::ADD_LIB.")
- find_package(Catch2 3 REQUIRED)
-endif()
+
 
 # Add dependencies source code
 
@@ -70,15 +66,8 @@ file(GLOB_RECURSE SOURCES_MAVIX_SPATIAL CONFIGURE_DEPENDS
 add_library(${PROJECT_NAME} ${SOURCES_MAVIX_SPATIAL} )
 target_link_libraries(${PROJECT_NAME} 
     nvm-core
-    absl::base 
-    absl::flat_hash_map 
-    absl::algorithm
-    absl::numeric
-    absl::random_random
-    absl::synchronization 
-    absl::strings
-    absl::time
-    absl::utility)
+    mavix-core-v1
+    )
 
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 target_include_directories(${PROJECT_NAME}
@@ -88,9 +77,9 @@ target_include_directories(${PROJECT_NAME}
 
 
 add_executable(${PROJECT_NAME}-test main.cc)
-if(Sanitizers_FOUND)
+if(Sanitizers_FOUND AND LIB_MAVIX_SPATIAL_SANITIZE_ADDRESS)
     add_sanitizers("${PROJECT_NAME}-test")
-    message(STATUS "${PROJECT_NAME}-test_LIB::ASAN:ON.")
+    message(STATUS "${PROJECT_NAME}-test : ASAN OK")
 endif()
 
 target_link_libraries(${PROJECT_NAME}-test PRIVATE  ${PROJECT_NAME} )
@@ -100,9 +89,9 @@ target_include_directories("${PROJECT_NAME}-test"
 )
 
 if(LIB_MAVIX_SPATIAL_USE_TEST)
-    message(STATUS "TEST::ADD_UNIT_TEST.")
+    message(STATUS "${PROJECT_NAME} unit test : OK")
     add_subdirectory(tests)
 endif()       
 
-message(STATUS "MVIX::SPATIAL LIB Configuration Done!\n")
+message(STATUS "${PROJECT_NAME} : OK")
 set(mavix-spatial-v1_FOUND  ON)

@@ -1,17 +1,17 @@
 cmake_minimum_required(VERSION 3.10)
 project(mavix-osm-v1 CXX)
 
-message( "MAVIX::OSM v1")
-message( "-----------------------------")
-message(STATUS "MAVIX::OSM v1 LIB DIR:${CMAKE_CURRENT_SOURCE_DIR}")
+# message( "MAVIX::OSM v1")
+# message( "-----------------------------")
+# message(STATUS "MAVIX::OSM v1 LIB DIR:${CMAKE_CURRENT_SOURCE_DIR}")
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
+# set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 set(ABSL_PROPAGATE_CXX_STD ON)
 
 option(LIB_MAVIX_OSM_BUILD_DOC "Build documentation" OFF)
-option(LIB_MAVIX_OSM_SANITIZE_ADDRESS "SANITIZE ADDRESS" OFF)
+option(LIB_MAVIX_OSM_SANITIZE_ADDRESS "SANITIZE ADDRESS" ON)
 option(LIB_MAVIX_OSM_USE_CATCH ON)
 option(LIB_MAVIX_OSM_USE_LIB ON)
 option(LIB_MAVIX_OSM_USE_TEST OFF)
@@ -81,6 +81,29 @@ protobuf_generate(
     IMPORT_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/proto/"
     PROTOC_OUT_DIR "${OSM_PROTO_OUTPUT_DIR}")
 
+# copy osm sample to build dir
+set(OSM_EXAMPLE_DATA
+    GranFileBlock1-deflate.osm.pbf
+    GranFileBlock1-none.osm.pbf
+    sample.pbf
+    SimpleFileBlock1-deflate.osm.pbf
+    SimpleFileBlock1-none.osm.pbf
+)
+
+# Destination folder in the build directory
+set(OSM_DEST_FOLDER "${CMAKE_CURRENT_BINARY_DIR}/osm-example/")
+
+# Ensure the destination directory exists
+file(MAKE_DIRECTORY ${OSM_DEST_FOLDER})
+
+# Iterate over the list of files and copy each one
+foreach(file IN LISTS OSM_EXAMPLE_DATA)
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/resources/${file}"  # Source path of the file
+        "${OSM_DEST_FOLDER}/${file}"  # Destination path in the build directory
+        COPYONLY 
+    )
+endforeach()
 
 # Main headers and sources
 file(GLOB_RECURSE SOURCES_MAVIX_OSM CONFIGURE_DEPENDS
@@ -111,7 +134,7 @@ target_include_directories(${PROJECT_NAME}
 add_executable(${PROJECT_NAME}-test main.cc)
 if(Sanitizers_FOUND)
     add_sanitizers("${PROJECT_NAME}-test")
-    message(STATUS "${PROJECT_NAME}-test_LIB::ASAN:ON.")
+    message(STATUS "${PROJECT_NAME}-test : ASAN OK")
 endif()
 
 target_link_libraries(${PROJECT_NAME}-test PRIVATE  ${PROJECT_NAME} )
@@ -122,9 +145,9 @@ target_include_directories("${PROJECT_NAME}-test"
 )
 
 if(LIB_MAVIX_OSM_USE_TEST)
-    message(STATUS "TEST::ADD_UNIT_TEST.")
+    message(STATUS "${PROJECT_NAME} unit test : OK")
     add_subdirectory(tests)
 endif()       
 
-message(STATUS "MAVIX::OSM LIB Configuration Done!\n")
+message(STATUS "${PROJECT_NAME} : OK")
 set(mavix-osm-v1_core_FOUND  ON)
