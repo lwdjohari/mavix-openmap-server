@@ -12,10 +12,10 @@
 #include <gperftools/tcmalloc.h>
 // #include <gperftools/malloc_hook.h>
 #elif defined(MAVIX_ALLOCATOR_JEMALLOC)
-
-#ifndef JEMALLOC_MANGLE
-#define JEMALLOC_MANGLE
-#endif
+// #undef posix_memalign
+// #ifndef JEMALLOC_MANGLE
+// #define JEMALLOC_MANGLE
+// #endif
 
 #include <jemalloc/jemalloc.h>
 
