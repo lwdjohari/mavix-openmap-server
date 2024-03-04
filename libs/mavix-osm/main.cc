@@ -1,6 +1,6 @@
-#ifndef MAVIX_DEBUG_SHARED_BUFFER
-#define MAVIX_DEBUG_SHARED_BUFFER
-#endif
+// #ifndef MAVIX_DEBUG_SHARED_BUFFER
+// #define MAVIX_DEBUG_SHARED_BUFFER
+// #endif
 
 #ifndef MAVIX_DEBUG_STREAM_BUFFER
 #define MAVIX_DEBUG_STREAM_BUFFER
@@ -16,6 +16,7 @@
 using namespace mavix::v1::core;
 using namespace mavix::v1::osm;
 
+
 void TCMallocInfo() {
   size_t value = 0;
 
@@ -29,7 +30,13 @@ void TCMallocInfo() {
 }
 
 int main() {
+  std::streamsize processing_size = std::streamsize(0);
+
   std::string pbf_files[] = {"./osm-example/sample.pbf",
+                             "/home/txv/osm-data/2024/brunei.osm.pbf",
+                             "/home/txv/osm-data/2024/east_timor.osm.pbf",
+                             "/home/txv/osm-data/2024/philippines.osm.pbf",
+                             "/home/txv/osm-data/2024/thailand.osm.pbf",
                              "/home/txv/osm-data/2024/singapore.osm.pbf",
                              "/home/txv/osm-data/2024/malaysia.osm.pbf",
                              "/home/txv/osm-data/2024/indonesia.osm.pbf"};
@@ -42,12 +49,12 @@ int main() {
   for (auto &pbf_file : pbf_files) {
     std::cout << "- " << pbf_file << std::endl;
   }
-  std::string line;
-  std::cout << "\nPress any key to star processing... ";
-  std::getline(std::cin, line);
+  // std::string line;
+  // std::cout << "\nPress any key to star processing... ";
+  // std::getline(std::cin, line);
 
   // while(true){
-    for (auto &pbf_file : pbf_files) {
+  for (auto &pbf_file : pbf_files) {
     auto stream = std::make_unique<pbf::PbfStreamReader>(pbf_file, false);
 
     auto sb = std::make_unique<StreamBuffer<BlockType>>(
@@ -70,6 +77,7 @@ int main() {
 
     std::cout << std::endl;
 
+    processing_size+=stream->StreamSize();
     stream->Start();
 
     TCMallocInfo();
@@ -77,7 +85,7 @@ int main() {
     stream->Stop();
   }
   // }
-  
 
+  std::cout << "Total processing: " << processing_size /1024/1024 << " MB." << std::endl;
   return 0;
 }
