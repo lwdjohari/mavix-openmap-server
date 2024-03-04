@@ -29,7 +29,7 @@ class MemoryBuffer {
     data_ = buffer_.allocate(size_);
 #if defined(MAVIX_DEBUG_CORE) && defined(MAVIX_DEBUG_SHARED_BUFFER)
     if (!data_)
-      std::cout << "\nAllocated shared buffer failed[" << id_ << "]: " << size_
+      std::cout << "Allocated shared buffer failed[" << id_ << "]: " << size_
                 << std::endl;
 #endif
 
@@ -40,7 +40,7 @@ class MemoryBuffer {
     end_ = data_ + size_;
 
 #if defined(MAVIX_DEBUG_CORE) && defined(MAVIX_DEBUG_SHARED_BUFFER)
-    std::cout << "\nAllocated shared-buffer[" << id_ << "]: " << size_
+    std::cout << "Allocated shared-buffer[" << id_ << "]: " << size_
               << std::endl;
 #endif
   }
@@ -85,24 +85,13 @@ class MemoryBuffer {
     end_ = nullptr;
 
 #if defined(MAVIX_DEBUG_CORE) && defined(MAVIX_DEBUG_SHARED_BUFFER)
-    std::cout << "\nDeallocated shared-buffer[" << id_ << "]: " << size_
+    std::cout << "Deallocated shared-buffer[" << id_ << "]: " << size_
               << std::endl;
 #endif
   }
 
   ~MemoryBuffer() {
-    if (!is_allocated_) return;
-
-#if defined(MAVIX_DEBUG_CORE) && defined(MAVIX_DEBUG_SHARED_BUFFER)
-    std::cout << "Finalized shared-buffer[" << id_ << "]: " << size_
-              << std::endl;
-#endif
-
-    buffer_.deallocate(data_, size_);
-    is_allocated_ = false;
-    data_ = nullptr;
-    begin_ = nullptr;
-    end_ = nullptr;
+  
   }
 
   const TId& Id() const { return id_; }

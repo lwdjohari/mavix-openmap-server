@@ -158,53 +158,53 @@ struct MemoryAllocatorDeleter {
   }
 };
 
-template <typename T, typename... Args>
-auto make_unique_with_allocator(
-    Args&&... args) {
-#if defined(MAVIX_ALLOCATOR_JEMALLOC) || defined(MAVIX_ALLOCATOR_GOOGLE_ARENA)
-  MemoryAllocator<T> allocator;
-  T* ptr = nullptr;
-  try {
-    ptr = allocator.allocate(1);
-    allocator.construct(ptr, std::forward<Args>(args)...);
-  } catch (const std::exception& e) {
-    // Handle or log the allocation error
-    std::cerr << "make_unique_with_allocator error: " << e.what() << '\n';
-    // ensure no memory leak if allocate success
-    if (ptr) {
-      allocator.deallocate(ptr, 1);
-    }
-    throw;
-  }
-  return std::unique_ptr<T, MemoryAllocatorDeleter<T>>(
-      ptr, MemoryAllocatorDeleter<T>(std::move(allocator)));
-#else
-  return std::make_unique<T>(std::forward<Args>(args)...);
-#endif
-}
+// template <typename T, typename... Args>
+// auto make_unique_with_allocator(
+//     Args&&... args) {
+// #if defined(MAVIX_ALLOCATOR_JEMALLOC) || defined(MAVIX_ALLOCATOR_GOOGLE_ARENA)
+//   MemoryAllocator<T> allocator;
+//   T* ptr = nullptr;
+//   try {
+//     ptr = allocator.allocate(1);
+//     allocator.construct(ptr, std::forward<Args>(args)...);
+//   } catch (const std::exception& e) {
+//     // Handle or log the allocation error
+//     std::cerr << "make_unique_with_allocator error: " << e.what() << '\n';
+//     // ensure no memory leak if allocate success
+//     if (ptr) {
+//       allocator.deallocate(ptr, 1);
+//     }
+//     throw;
+//   }
+//   return std::unique_ptr<T, MemoryAllocatorDeleter<T>>(
+//       ptr, MemoryAllocatorDeleter<T>(std::move(allocator)));
+// #else
+//   return std::make_unique<T>(std::forward<Args>(args)...);
+// #endif
+// }
 
-template <typename T, typename... Args>
-auto make_shared_with_allocator(Args&&... args) {
-#if defined(MAVIX_ALLOCATOR_JEMALLOC) || defined(MAVIX_ALLOCATOR_GOOGLE_ARENA)
-  MemoryAllocator<T> allocator;
-  T* ptr = nullptr;
-  try {
-    ptr = allocator.allocate(1);
-    allocator.construct(ptr, std::forward<Args>(args)...);
-  } catch (const std::exception& e) {
-    std::cerr << "make_shared_with_allocator error: " << e.what() << '\n';
-    // ensure no memory leak if allocate success
-    if (ptr) {
-      allocator.deallocate(ptr, 1);
-    }
-    throw;
-  }
-  return std::shared_ptr<T>(ptr,
-                            MemoryAllocatorDeleter<T>(std::move(allocator)));
-#else
-  return std::make_shared<T>(std::forward<Args>(args)...);
-#endif
-}
+// template <typename T, typename... Args>
+// auto make_shared_with_allocator(Args&&... args) {
+// #if defined(MAVIX_ALLOCATOR_JEMALLOC) || defined(MAVIX_ALLOCATOR_GOOGLE_ARENA)
+//   MemoryAllocator<T> allocator;
+//   T* ptr = nullptr;
+//   try {
+//     ptr = allocator.allocate(1);
+//     allocator.construct(ptr, std::forward<Args>(args)...);
+//   } catch (const std::exception& e) {
+//     std::cerr << "make_shared_with_allocator error: " << e.what() << '\n';
+//     // ensure no memory leak if allocate success
+//     if (ptr) {
+//       allocator.deallocate(ptr, 1);
+//     }
+//     throw;
+//   }
+//   return std::shared_ptr<T>(ptr,
+//                             MemoryAllocatorDeleter<T>(std::move(allocator)));
+// #else
+//   return std::make_shared<T>(std::forward<Args>(args)...);
+// #endif
+// }
 
 }  // namespace memory
 }  // namespace core

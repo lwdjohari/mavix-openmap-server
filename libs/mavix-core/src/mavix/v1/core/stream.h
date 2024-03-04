@@ -107,7 +107,7 @@ class Stream {
     }
 
     auto buffer =
-        core::memory::make_shared_with_allocator<core::MemoryBuffer<T>>(id,
+        std::make_shared<core::MemoryBuffer<T>>(id,
                                                                         size);
 
     if (!stream_.read(reinterpret_cast<char*>(buffer->Data()), size)) {

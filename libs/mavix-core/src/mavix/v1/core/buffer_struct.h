@@ -1,10 +1,11 @@
 #pragma once
 
 #include <mavix/v1/core/core.h>
-
-#include <cstdint>
-#include <algorithm>
 #include <mavix/v1/core/memory_buffer.h>
+
+#include <algorithm>
+#include <cstdint>
+
 #include "nvm/macro.h"
 
 namespace mavix {
@@ -62,6 +63,34 @@ struct PageLocatorInfo {
   std::streamsize total_size;
   PageLocatorResolvement type;
   bool state;
+
+  explicit PageLocatorInfo()
+      : start_page_id(0),
+        end_page_id(0),
+        start(std::streampos(0)),
+        end(std::streampos(0)),
+        total_size(0),
+        type(PageLocatorResolvement::Unknown),
+        state(false) {}
+
+  PageLocatorInfo(const PageLocatorInfo& other)
+      : start_page_id(other.start_page_id),
+        end_page_id(other.end_page_id),
+        start(other.start),
+        end(other.end),
+        total_size(other.total_size),
+        type(other.type),
+        state(other.state) {}
+
+  void Clone(const PageLocatorInfo& other) {
+    start_page_id = other.start_page_id;
+    end_page_id = other.end_page_id;
+    start = std::streampos(other.start);
+    end = std::streampos(other.end);
+    total_size = std::streamsize(other.total_size);
+    type = other.type;
+    state = other.state;
+  }
 };
 
 }  // namespace core

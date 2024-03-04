@@ -92,8 +92,7 @@ class CacheBucket {
     return buffer_locator_.GetTotalPages(max_cache_size_, cache_size_page_);
   }
 
-  size_t MaterializeCachePages(std::streampos position,
-                               size_t size) {
+  size_t MaterializeCachePages(std::streampos position, size_t size) {
     auto locators = buffer_locator_.GetPageRange(
         position, size, cache_size_page_, stream_size_);
 
@@ -107,7 +106,7 @@ class CacheBucket {
 
     auto page_nums = locators->end_page_id - locators->start_page_id;
     auto materialized_count = 0;
-    for (auto i = locators->start_page_id ; i <= locators->end_page_id ; i++) {
+    for (auto i = locators->start_page_id; i <= locators->end_page_id; i++) {
       if (active_pages_.contains(i)) {
         materialized_count++;
         continue;
@@ -115,8 +114,8 @@ class CacheBucket {
 
       auto buff = caches_.emplace(i, MemoryBuffer<T>(size));
       auto page = &pages_.at(i);
-      auto copy_state = stream_->CopyToPointer<T>(buff.first->second.Data(), page->start,
-                                page->size);
+      auto copy_state = stream_->CopyToPointer<T>(buff.first->second.Data(),
+                                                  page->start, page->size);
       page->cache_page_state = BufferPageState::Allocated;
       page->marked_pos = std::streampos(0);
       page->marked_size = std::streamsize(0);
@@ -124,7 +123,6 @@ class CacheBucket {
       active_pages_.emplace(i, BufferPage(*page));
 
       materialized_count++;
-      
     }
 
     return materialized_count;
@@ -158,8 +156,16 @@ class CacheBucket {
       return 0;
     }
 
+    auto c = &caches_.at(buffer_page_id);
+    c->Destroy();
+
     caches_.erase(buffer_page_id);
     active_pages_.erase(buffer_page_id);
+
+#if defined(MAVIX_DEBUG_CORE) && defined(MAVIX_DEBUG_STREAM_BUFFER)
+    std::cout << "Removed cache page from bucket [" << buffer_page_id << "]"
+              << std::endl;
+#endif
 
     return 1;
   }
@@ -171,6 +177,10 @@ class CacheBucket {
   }
 
   bool Destroy() {
+    for (auto& c : caches_) {
+      c.second.Destroy();
+    }
+
     pages_.clear();
     active_pages_.clear();
     deleted_pages_.clear();
@@ -198,50 +208,49 @@ class CacheBucket {
     }
 
     auto local_pos = buffer_locator_.TranslateGlobalPosToLocalPos(
-        global_pos,  stream_size_, cache_size_page_);
+        global_pos, stream_size_, cache_size_page_);
     if (local_pos.first == 0) return nullptr;
 
     auto c = &caches_.at(cache_page_id);
     return c->Data(local_pos.second, size);
   }
 
-  std::vector<BufferPointer> GetAsPointer(
-      std::streampos position, size_t size,
-      PageLocatorResolvement& resolve_result) {
+  std::vector<BufferPointer> GetAsPointer(std::streampos position, size_t size,
+                                          PageLocatorInfo& resolve_result) {
     return std::vector<BufferPointer>();
   }
 
-  std::shared_ptr<MemoryBuffer<T>> GetAsCopy(
-      std::streampos position, size_t size,
-      PageLocatorResolvement& resolve_result) {
+  std::shared_ptr<MemoryBuffer<T>> GetAsCopy(std::streampos position,
+                                             size_t size,
+                                             PageLocatorInfo& resolve_result) {
     if (pages_.size() == 0) {
-      resolve_result = PageLocatorResolvement::Unknown;
+      resolve_result = PageLocatorInfo();
       return nullptr;
     }
 
     auto locator = GetBufferLocator(position, size);
 
     if (!locator) {
-      resolve_result = PageLocatorResolvement::Unknown;
+      resolve_result = PageLocatorInfo();
       return nullptr;
     }
 
     if (locator->type == PageLocatorResolvement::SinglePage) {
-      auto buffer = memory::make_shared_with_allocator<MemoryBuffer<T>>(size);
-      resolve_result = PageLocatorResolvement::SinglePage;
+      auto buffer = std::make_shared<MemoryBuffer<T>>(size);
+      resolve_result.Clone(*locator);
       return std::move(buffer);
     } else if (locator->type == PageLocatorResolvement::CrossPage) {
       auto global_cursor = std::streampos(position);
       auto global_end = position + std::streamsize(size);
       size_t buffer_cursor = 0;
 
-      auto buffer = memory::make_shared_with_allocator<MemoryBuffer<T>>(size);
+      auto buffer = std::make_shared<MemoryBuffer<T>>(size);
 
       for (uint64_t i = locator->start_page_id; i <= locator->end_page_id;
            i++) {
         auto isPageDefined = pages_.contains(i);
         if (!isPageDefined) {
-          resolve_result = PageLocatorResolvement::Unknown;
+          resolve_result = PageLocatorInfo();
           return nullptr;
         }
 
@@ -269,7 +278,7 @@ class CacheBucket {
         auto src_ptr = c.Data(local_start - p.start, local_size);
 
         if (!src_ptr) {
-          resolve_result = PageLocatorResolvement::Unknown;
+          resolve_result = PageLocatorInfo();
           return nullptr;
         }
 
@@ -280,11 +289,11 @@ class CacheBucket {
         global_cursor = copy_end;
       }
 
-      resolve_result = PageLocatorResolvement::CrossPage;
+      resolve_result.Clone(*locator);
       return std::move(buffer);
     }
 
-    resolve_result = PageLocatorResolvement::Unknown;
+    resolve_result = PageLocatorInfo();
     return nullptr;
   }
 

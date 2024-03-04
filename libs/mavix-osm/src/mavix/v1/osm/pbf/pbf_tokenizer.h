@@ -26,41 +26,44 @@ class PbfTokenizer {
   ~PbfTokenizer(){};
 
   int32_t GetHeaderLength(core::IMemoryBufferAdapter<BlockType>* buffer,
-                          std::streampos& position, bool& state) {
+                          std::streampos& position, core::PageLocatorInfo& resolve_result) {
     nvm::bytes::ByteOpResult result;
 
-    auto resolve_result = core::PageLocatorResolvement::Unknown;
+    
 
     uint8_t* ptr = buffer->GetAsInlinePointer(position, 4, resolve_result);
     int32_t header_size = 0;
-    if (resolve_result == core::PageLocatorResolvement::SinglePage) {
+    
+    if (resolve_result.type == core::PageLocatorResolvement::SinglePage) {
       header_size = nvm::bytes::ToInt32<uint8_t>(
           ptr, 4, result, nvm::bytes::EndianessType::BigEndian);
-    } else if (resolve_result == core::PageLocatorResolvement::CrossPage) {
+    } else if (resolve_result.type == core::PageLocatorResolvement::CrossPage) {
       auto raw = buffer->GetAsCopy(position, 4, resolve_result);
       header_size = nvm::bytes::ToInt32<uint8_t>(
           raw->Data(), 4, result, nvm::bytes::EndianessType::BigEndian);
+      raw->Destroy();
+      
     }
 
     position += std::streamsize(4);
-    state = true;
     return header_size;
   }
 
   OSMPBF::Blob GetPbfBlob(core::IMemoryBufferAdapter<BlockType>* buffer,
                           const size_t& header_size, const size_t& data_size,
-                          std::streampos& position, bool& state) {
-    auto resolve_result = core::PageLocatorResolvement::Unknown;
+                          std::streampos& position, core::PageLocatorInfo& resolve_result) {
     uint8_t* ptr =
         buffer->GetAsInlinePointer(position, header_size, resolve_result);
 
     auto blob = OSMPBF::Blob();
 
-    if (resolve_result == core::PageLocatorResolvement::SinglePage) {
+    if (resolve_result.type == core::PageLocatorResolvement::SinglePage) {
       blob.ParseFromArray(ptr, header_size);
-    } else if (resolve_result == core::PageLocatorResolvement::CrossPage) {
+    } else if (resolve_result.type == core::PageLocatorResolvement::CrossPage) {
       auto raw = buffer->GetAsCopy(position, header_size, resolve_result);
       blob.ParseFromArray(raw->Data(), header_size);
+      raw->Destroy();
+      
     }
 
     if (verbose_) {
@@ -72,33 +75,31 @@ class PbfTokenizer {
     if (blob.ByteSizeLong() == 0) {
       std::cout << "Blob mismatch :  " << blob.ByteSizeLong() << ":"
                 << data_size << std::endl;
-      state = false;
+      
       return OSMPBF::Blob();
     }
 
-    // position += static_cast<std::streamsize>(data_size);
     position += std::streamsize(data_size);
-    state = true;
     return std::move(blob);
   }
 
   OSMPBF::BlobHeader GetPbfHeader(core::IMemoryBufferAdapter<BlockType>* buffer,
                                   const size_t& header_size,
-                                  std::streampos& position, bool& state) {
-    auto resolve_result = core::PageLocatorResolvement::Unknown;
+                                  std::streampos& position, core::PageLocatorInfo& resolve_result) {
     uint8_t* ptr =
         buffer->GetAsInlinePointer(position, header_size, resolve_result);
 
     auto header = OSMPBF::BlobHeader();
 
-    if (resolve_result == core::PageLocatorResolvement::SinglePage) {
+    if (resolve_result.type == core::PageLocatorResolvement::SinglePage) {
       header.ParseFromArray(ptr, header_size);
-    } else if (resolve_result == core::PageLocatorResolvement::CrossPage) {
+    } else if (resolve_result.type == core::PageLocatorResolvement::CrossPage) {
       auto raw = buffer->GetAsCopy(position, header_size, resolve_result);
       header.ParseFromArray(raw->Data(), header_size);
+      raw->Destroy();
+      buffer->RemoveBufferPage(resolve_result.end_page_id-1);
     }
 
-    // header.ParseFromArray(ptr, header_size);
 
     if (verbose_) {
       std::cout << header.type() << " {indexdata = " << header.indexdata()
@@ -108,14 +109,24 @@ class PbfTokenizer {
 
     if (header.ByteSizeLong() == 0) {
       std::cout << "Header : zero-bytes " << std::endl;
-      state = false;
+      
       return OSMPBF::BlobHeader();
     }
 
     position += std::streamsize(header_size);
-    state = true;
+   
 
     return std::move(header);
+  }
+
+  void CleanupBuffer(core::IMemoryBufferAdapter<BlockType>* buffer,const core::PageLocatorInfo& current,const core::PageLocatorInfo& prev){
+    if(prev.total_size == 0 && prev.end_page_id == 0 && prev.start_page_id == 0){
+      return;
+    }
+    // std::cout << "page_id: " << prev.start_page_id << ":" << current.start_page_id << std::endl;
+    if(prev.start_page_id != current.start_page_id){
+      buffer->RemoveBufferPage(prev.start_page_id);
+    }
   }
 
   nvm::Option<PbfBlockMap> Detect(core::IMemoryBufferAdapter<BlockType>* buffer,
@@ -125,27 +136,26 @@ class PbfTokenizer {
     // Get header size
 
     std::streampos position = 0;
+    core::PageLocatorInfo resolve_result = core::PageLocatorInfo();
+    core::PageLocatorInfo prev_result = core::PageLocatorInfo();
 
     while (position < buffer->StreamSize()) {
       bool state = false;
 
-      auto header_size = GetHeaderLength(buffer, position, state);
-      // std::cout << "Header Length: " << position << std::endl;
+      auto header_size = GetHeaderLength(buffer, position,  resolve_result);
+      CleanupBuffer(buffer,resolve_result,prev_result);
+      prev_result = resolve_result;
 
-      auto header = GetPbfHeader(buffer, header_size, position, state);
-      // std::cout << "Header: " << position << std::endl;
 
-      // #if defined(MAVIX_DEBUG_CORE)
-
-      // if(position == 20798786){
-
-      // }
-      // #endif
+      auto header = GetPbfHeader(buffer, header_size, position, resolve_result);
+      CleanupBuffer(buffer,resolve_result,prev_result);
+      prev_result = resolve_result;
 
       auto blob =
-          GetPbfBlob(buffer, header_size, header.datasize(), position, state);
-
-      // std::cout << "Blob: " << position << std::endl;
+          GetPbfBlob(buffer, header_size, header.datasize(), position, resolve_result);
+      CleanupBuffer(buffer,resolve_result,prev_result);
+      prev_result = resolve_result;
+     
     }
 
     std::cout << "\nProcess size: " << position << std::endl;

@@ -44,7 +44,7 @@ class PbfStreamReader {
                            bool verbose = true)
       : file_(std::string(file)),
         cache_size_(processing_cache_size),
-        stream_(core::memory::make_shared_with_allocator<core::StreamBuffer<BlockType>>(
+        stream_(std::make_shared<core::StreamBuffer<BlockType>>(
             file, cache_options, processing_cache_size,
             processing_cache_size * 20)),
         options_(options),
@@ -56,7 +56,7 @@ class PbfStreamReader {
   explicit PbfStreamReader(const std::string& file, bool verbose = true)
       : file_(std::string(file)),
         cache_size_(1024 * 1024 * 20),
-        stream_(core::memory::make_shared_with_allocator<core::StreamBuffer<BlockType>>(
+        stream_(std::make_shared<core::StreamBuffer<BlockType>>(
             file, core::CacheGenerationOptions::None, 1024 * 1024 * 20,
             1024 * 1024 * 20 * 20)),
         options_(SkipOptions::None),

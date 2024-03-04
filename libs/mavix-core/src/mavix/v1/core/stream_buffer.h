@@ -29,16 +29,16 @@ class IMemoryBufferAdapter {
                                                       std::streamsize size) = 0;
 
   virtual uint8_t* GetAsInlinePointer(std::streampos pos, std::streamsize size,
-                                      PageLocatorResolvement& resolve_result,
+                                      PageLocatorInfo& resolve_result,
                                       bool prepend = true) = 0;
 
   virtual std::vector<BufferPointer> GetAsPointer(
       std::streampos pos, std::streamsize size,
-      PageLocatorResolvement& resolve_result) = 0;
+      PageLocatorInfo& resolve_result) = 0;
 
   virtual std::shared_ptr<MemoryBuffer<T>> GetAsCopy(
       std::streampos pos, std::streamsize size,
-      PageLocatorResolvement& resolve_result) = 0;
+      PageLocatorInfo& resolve_result) = 0;
 
   virtual absl::node_hash_map<uint64_t, BufferPage>
   GetRequiredBufferPages() = 0;
@@ -66,7 +66,7 @@ class StreamBuffer : IMemoryBufferAdapter<T> {
                         const size_t& cache_size_page = 1024 * 1024 * 20,
                         const size_t& max_cache_size = 1024 * 1024 * 20 * 10)
       : filename_(std::string(filename)),
-        stream_(memory::make_shared_with_allocator<Stream>(filename)),
+        stream_(std::make_shared<Stream>(filename)),
         isRun_(AFlagOnce()),
         cache_size_page_(size_t(cache_size_page)),
         max_cache_size_(size_t(max_cache_size)),
@@ -74,9 +74,9 @@ class StreamBuffer : IMemoryBufferAdapter<T> {
                                max_cache_size)){};
 
   ~StreamBuffer() {
-    if (IsStreamOpen()) {
-      Close();
-    }
+    // if (IsStreamOpen()) {
+    //   Close();
+    // }
   };
 
   const std::string& Filename() const { return filename_; }
@@ -97,38 +97,39 @@ class StreamBuffer : IMemoryBufferAdapter<T> {
   }
 
   virtual uint8_t* GetAsInlinePointer(std::streampos pos, std::streamsize size,
-                                      PageLocatorResolvement& resolve_result,
+                                      PageLocatorInfo& resolve_result,
                                       bool prepend = true) override {
     auto locator = caches_.GetBufferLocator(pos, size);
 
     if (!locator) {
-      resolve_result = PageLocatorResolvement::Unknown;
+      resolve_result = PageLocatorInfo();
       return nullptr;
     }
 
     if (!locator->state) {
-      resolve_result = PageLocatorResolvement::Unknown;
+      resolve_result = PageLocatorInfo();
       return nullptr;
     }
 
     if (locator->end_page_id != locator->start_page_id) {
-      resolve_result = PageLocatorResolvement::CrossPage;
+      resolve_result = PageLocatorInfo();
+      resolve_result.type = PageLocatorResolvement::CrossPage;
       return nullptr;
     };
 
-    resolve_result = PageLocatorResolvement::SinglePage;
+    resolve_result.Clone(*locator);
     return caches_.DataInline(locator->start_page_id, pos, size, prepend);
   }
 
   std::vector<BufferPointer> GetAsPointer(std::streampos pos,
                                           std::streamsize size,
-                                           PageLocatorResolvement& resolve_result) override {
+                                           PageLocatorInfo& resolve_result) override {
     return caches_.GetAsPointer(pos, size, resolve_result);
   }
 
   std::shared_ptr<MemoryBuffer<T>> GetAsCopy(
       std::streampos pos, std::streamsize size,
-      PageLocatorResolvement& resolve_result) override {
+      PageLocatorInfo& resolve_result )override {
     return caches_.GetAsCopy(pos, size, resolve_result);
   }
 

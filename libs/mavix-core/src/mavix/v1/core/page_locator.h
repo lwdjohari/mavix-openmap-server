@@ -40,7 +40,7 @@ class PageLocator {
   std::shared_ptr<PageLocatorInfo> GetPageRange(
       std::streampos pos, std::streamsize size,
       const size_t &cache_size_per_page, const std::streamsize &streamsize) {
-    auto locator_result = memory::make_shared_with_allocator<PageLocatorInfo>();
+    auto locator_result = std::make_shared<PageLocatorInfo>();
     auto cache_size = size_t(cache_size_per_page);
     auto stream_size = std::streamsize(streamsize);
     auto position = std::streampos(pos);
