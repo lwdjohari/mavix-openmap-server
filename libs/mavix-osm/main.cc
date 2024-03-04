@@ -29,17 +29,17 @@ int main() {
   
 
   std::string pbf_files[] = {
-      "./osm-example/sample.pbf",
+      // "./osm-example/sample.pbf",
       "/home/txv/osm-data/2024/singapore.osm.pbf",
       // "/home/txv/osm-data/2024/malaysia.osm.pbf",
   };
 
   for (auto &pbf_file : pbf_files) {
     auto stream = memory::make_unique_with_allocator<pbf::PbfStreamReader>(
-        pbf_file, true);
+        pbf_file, false);
 
     auto sb =
-        memory::make_unique_with_allocator<StreamBuffer<BlockType>>(pbf_file);
+        memory::make_unique_with_allocator<StreamBuffer<BlockType>>(pbf_file, CacheGenerationOptions::None);
 
     sb->Open();
     auto cache_pages = sb->GetRequiredBufferPages();
@@ -60,7 +60,7 @@ int main() {
     stream->Start();
 
     TCMallocInfo();
-    
+
     stream->Stop();
   }
 

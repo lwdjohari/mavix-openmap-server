@@ -6,45 +6,47 @@
 #include <memory>
 
 #include "mavix/v1/core/aflag_once.h"
-#include "mavix/v1/core/shared_buffer.h"
+#include "mavix/v1/core/memory_buffer.h"
 #include "mavix/v1/core/stream.h"
+#include "mavix/v1/core/stream_buffer.h"
 #include "mavix/v1/osm/block_type.h"
-#include "mavix/v1/osm/pbf/pbf_block_detector.h"
+#include "mavix/v1/osm/pbf/pbf_tokenizer.h"
 #include "mavix/v1/osm/skip_options.h"
 
 namespace mavix {
 namespace v1 {
 namespace osm {
 namespace pbf {
+
 class PbfStreamReader {
  private:
  protected:
   std::string file_;
   size_t cache_size_;
-  core::Stream stream_;
+  std::shared_ptr<core::StreamBuffer<BlockType>> stream_;
   SkipOptions options_;
-  std::shared_ptr<core::SharedBuffer<BlockType>> buffer_;
   core::AFlagOnce isRun_;
   bool verbose_;
 
   virtual void Process() {
-    buffer_ =
-        stream_.CopyToSharedBuffer(BlockType::RawBinary, 0, stream_.Size());
+    auto detector = pbf::PbfTokenizer(verbose_);
 
-    auto detector = pbf::PbfBlockDetector(verbose_);
-
-    detector.Detect(buffer_, 0);
+    detector.Detect(stream_->GetAdapter(), 0);
   }
 
  public:
   explicit PbfStreamReader(const std::string& file,
                            SkipOptions options = SkipOptions::None,
+                           core::CacheGenerationOptions cache_options =
+                               core::CacheGenerationOptions::None,
                            const size_t& processing_cache_size = 1024 * 1024 *
                                                                  20,
                            bool verbose = true)
       : file_(std::string(file)),
         cache_size_(processing_cache_size),
-        stream_(file),
+        stream_(core::memory::make_shared_with_allocator<core::StreamBuffer<BlockType>>(
+            file, cache_options, processing_cache_size,
+            processing_cache_size * 20)),
         options_(options),
         isRun_(core::AFlagOnce()),
         verbose_(verbose) {
@@ -54,7 +56,9 @@ class PbfStreamReader {
   explicit PbfStreamReader(const std::string& file, bool verbose = true)
       : file_(std::string(file)),
         cache_size_(1024 * 1024 * 20),
-        stream_(file),
+        stream_(core::memory::make_shared_with_allocator<core::StreamBuffer<BlockType>>(
+            file, core::CacheGenerationOptions::None, 1024 * 1024 * 20,
+            1024 * 1024 * 20 * 20)),
         options_(SkipOptions::None),
         isRun_(core::AFlagOnce()),
         verbose_(verbose) {
@@ -62,24 +66,24 @@ class PbfStreamReader {
   };
 
   ~PbfStreamReader() {
-    if (stream_.IsOpen()) {
-      stream_.Close();
+    if (stream_->IsStreamOpen()) {
+      stream_->Close();
     }
   };
 
   const std::string& Filename() const { return file_; }
 
-  bool IsStreamOpen() const { return stream_.IsOpen(); }
+  bool IsStreamOpen() const { return stream_->IsStreamOpen(); }
 
-  bool IsStreamGood() const { return stream_.IsGood(); }
+  bool IsStreamGood() const { return stream_->IsStreamGood(); }
 
-  bool IsStreamEof() const { return stream_.IsEof(); }
+  bool IsStreamEof() const { return stream_->IsStreamEof(); }
 
-  std::streamsize StreamSize() const { return stream_.Size(); }
+  std::streamsize StreamSize() const { return stream_->StreamSize(); }
 
-  core::StreamState Open() { return stream_.Open(); }
+  core::StreamState Open() { return stream_->Open(); }
 
-  core::StreamState Close() { return stream_.Close(); }
+  core::StreamState Close() { return stream_->Close(); }
 
   core::StreamState Start(bool verbose = false) {
     if (isRun_.State()) return core::StreamState::Processing;

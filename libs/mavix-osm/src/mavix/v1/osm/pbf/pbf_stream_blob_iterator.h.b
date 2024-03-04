@@ -9,7 +9,7 @@
 #include <vector>
 
 #include "mavix/v1/core/stream.h"
-#include "mavix/v1/core/shared_buffer.h"
+#include "mavix/v1/core/memory_buffer.h"
 #include "nvm/bytes/byte.h"
 #include "osmpbf/osmpbf.h"
 

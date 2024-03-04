@@ -19,7 +19,6 @@ class AFlagOnce {
   bool state_;
   absl::Mutex mu_;
 
-  
  public:
   AFlagOnce() : state_(false){};
   explicit AFlagOnce(bool cstate) : state_(cstate){};

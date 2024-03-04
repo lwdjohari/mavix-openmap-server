@@ -8,7 +8,7 @@
 #include <thread>
 
 #include "absl/synchronization/mutex.h"
-#include "mavix/v1/core/shared_buffer.h"
+#include "mavix/v1/core/memory_buffer.h"
 #include "nvm/result.h"
 
 namespace mavix {

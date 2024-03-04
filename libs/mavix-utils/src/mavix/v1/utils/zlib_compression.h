@@ -8,7 +8,7 @@
 #include <memory>
 #include <vector>
 
-#include "mavix/v1/core/shared_buffer.h"
+#include "mavix/v1/core/memory_buffer.h"
 
 namespace mavix {
 namespace v1 {
@@ -21,8 +21,8 @@ class ZlibCompression {
   ZlibCompression::~ZlibCompression() {}
 
   template <typename T>
-  std::shared_ptr<core::SharedBuffer<T>> ZlibCompression::deflateBytes(
-      std::shared_ptr<core::SharedBuffer<T>> buffer) {
+  std::shared_ptr<core::MemoryBuffer<T>> ZlibCompression::deflateBytes(
+      std::shared_ptr<core::MemoryBuffer<T>> buffer) {
     bool result;
 
     this->deflateBytes(buffer->Ptr(0), buffer->Size(), nullptr, result);
@@ -30,7 +30,7 @@ class ZlibCompression {
     if (!result) return nullptr;
 
     auto s =
-        std::make_shared<core::SharedBuffer<T>>(buffer->Id(), buffer->Size());
+        std::make_shared<core::MemoryBuffer<T>>(buffer->Id(), buffer->Size());
 
     return std::move(s);
   }
@@ -83,9 +83,9 @@ class ZlibCompression {
   }
 
   template <typename T>
-  std::shared_ptr<core::SharedBuffer<T>> ZlibCompression::inflateBytes(
-      std::shared_ptr<core::SharedBuffer<T>> buffer) {
-    return std::shared_ptr<core::SharedBuffer<T>>();
+  std::shared_ptr<core::MemoryBuffer<T>> ZlibCompression::inflateBytes(
+      std::shared_ptr<core::MemoryBuffer<T>> buffer) {
+    return std::shared_ptr<core::MemoryBuffer<T>>();
   }
 
   void ZlibCompression::inflateBytes(const uint8_t *source, size_t sourceLength,

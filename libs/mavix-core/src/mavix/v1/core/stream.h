@@ -4,7 +4,7 @@
 
 #include <fstream>
 
-#include "mavix/v1/core/shared_buffer.h"
+#include "mavix/v1/core/memory_buffer.h"
 #include "nvm/macro.h"
 
 namespace mavix {
@@ -94,7 +94,7 @@ class Stream {
   }
 
   template <typename T>
-  std::shared_ptr<core::SharedBuffer<T>> CopyToSharedBuffer(T id,
+  std::shared_ptr<core::MemoryBuffer<T>> CopyToSharedBuffer(T id,
                                                             std::streampos pos,
                                                             size_t size) {
     if (!stream_.good() || !stream_.is_open() || size == 0) return nullptr;
@@ -107,7 +107,7 @@ class Stream {
     }
 
     auto buffer =
-        core::memory::make_shared_with_allocator<core::SharedBuffer<T>>(id,
+        core::memory::make_shared_with_allocator<core::MemoryBuffer<T>>(id,
                                                                         size);
 
     if (!stream_.read(reinterpret_cast<char*>(buffer->Data()), size)) {
@@ -164,7 +164,7 @@ class Stream {
   std::streampos Prev() { return Next(CurrentPosition() - std::streampos(1)); }
 
   bool IsOutOfBound(const std::streampos& pos, const size_t& size) {
-    return (pos + static_cast<std::streampos>(size) >= size_) ? false : true;
+    return (pos + static_cast<std::streampos>(size) > size_) ? true : false;
   }
 
   bool IsOpen() const { return stream_.is_open(); }
