@@ -6,20 +6,20 @@
 #include <memory>
 
 #include "mavix/v1/core/core.h"
+#include "mavix/v1/core/icache_bucket.h"
 
 namespace mavix {
 namespace v1 {
 namespace core {
 
-template <typename TId>
-class MemoryBuffer {
+class MemoryBuffer : public ICacheBucketBuffer {
  private:
   size_t size_;
   memory::MemoryAllocator<uint8_t> buffer_;
   uint8_t* begin_;
   uint8_t* end_;
   uint8_t* data_;
-  TId id_;
+
   bool is_allocated_;
   bool isFinalized_;
 
@@ -46,20 +46,8 @@ class MemoryBuffer {
   }
 
  public:
-  explicit MemoryBuffer(size_t buffer_size)
-      : id_(),
-        size_(buffer_size),
-        begin_(nullptr),
-        end_(nullptr),
-        data_(nullptr),
-        is_allocated_(false),
-        buffer_(memory::MemoryAllocator<uint8_t>()),
-        isFinalized_(false) {
-    Initialize();
-  }
-  MemoryBuffer(TId id, size_t buffer_size)
-      : id_(id),
-        size_(buffer_size),
+  explicit MemoryBuffer()
+      : size_(0),
         begin_(nullptr),
         end_(nullptr),
         data_(nullptr),
@@ -69,6 +57,18 @@ class MemoryBuffer {
     Initialize();
   }
 
+  explicit MemoryBuffer(size_t buffer_size)
+      : size_(buffer_size),
+        begin_(nullptr),
+        end_(nullptr),
+        data_(nullptr),
+        is_allocated_(false),
+        buffer_(memory::MemoryAllocator<uint8_t>()),
+        isFinalized_(false) {
+    Initialize();
+  }
+
+  // cppcheck-suppress unknownMacro
   NVM_CONST_DELETE_COPY_AND_DEFAULT_MOVE(MemoryBuffer)
 
   memory::AllocatorType AllocatorType() const {
@@ -90,11 +90,7 @@ class MemoryBuffer {
 #endif
   }
 
-  ~MemoryBuffer() {
-  
-  }
-
-  const TId& Id() const { return id_; }
+  ~MemoryBuffer() {}
 
   uint8_t* Ptr(size_t index) { return data_; }
 
@@ -111,6 +107,12 @@ class MemoryBuffer {
     if (data_ + pos >= end_ || data_ + pos + size > end_) return nullptr;
     return data_ + pos;
   }
+
+  bool CopyToPointer(uint8_t* data, std::streampos start, size_t size) {
+    if (!data || size == 0 || start <= 0) return false;
+    std::memcpy(data, data_, size);
+    return true;
+  };
 
   bool CopyFrom(const uint8_t* source, const size_t& size) {
     if (!source || !is_allocated_ || size == 0 || size != size_) return false;
@@ -129,7 +131,7 @@ class MemoryBuffer {
 
   const uint8_t* CEnd() const { return end_; }
 
-  size_t Size() const { return size_; }
+  std::streamsize Size() const { return size_; }
 
   bool IsAllocated() const { return is_allocated_; }
 };

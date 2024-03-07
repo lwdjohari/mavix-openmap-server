@@ -17,25 +17,26 @@ namespace core {
 
 enum class CacheGenerationOptions { None = 0, LimitMaxCacheSize = 1 };
 
-// cppcheck-suppress unknownMacro
+
 NVM_ENUMCLASS_ENABLE_BITMASK_OPERATORS(CacheGenerationOptions)
 
 NVM_ENUM_CLASS_DISPLAY_TRAIT(CacheGenerationOptions)
 
+
+
 /**
  * @brief Class that handle operations of multi-page/multi chunk stream buffered
  */
-template <typename T>
 class CacheBucket {
  private:
   size_t cache_size_page_;
   size_t max_cache_size_;
   std::streamsize stream_size_;
-  std::shared_ptr<core::Stream> stream_;
+  std::shared_ptr<ICacheBucketBuffer> stream_;
   size_t number_of_max_cache_page_;
   uint64_t last_prepend_cache_page_;
   AFlagOnce isInitialized_;
-  absl::node_hash_map<uint64_t, MemoryBuffer<T>> caches_;
+  absl::node_hash_map<uint64_t, MemoryBuffer> caches_;
   absl::node_hash_map<uint64_t, BufferPage> pages_;
   absl::node_hash_map<uint64_t, BufferPage> active_pages_;
   absl::node_hash_map<uint64_t, BufferPage> deleted_pages_;
@@ -43,16 +44,17 @@ class CacheBucket {
   CacheGenerationOptions options_;
 
  public:
-  explicit CacheBucket(std::shared_ptr<core::Stream> stream,
+  explicit CacheBucket(std::shared_ptr<ICacheBucketBuffer> stream,
                        CacheGenerationOptions options,
                        const size_t& cache_size_page = 1024 * 1024 * 20,
                        const size_t& max_cache_size = 1024 * 1024 * 20 * 10)
       : stream_(stream),
+        options_(options),
         stream_size_(stream->Size()),
         cache_size_page_(size_t(cache_size_page)),
         max_cache_size_(std::streamsize(max_cache_size)),
         number_of_max_cache_page_(0),
-        caches_(absl::node_hash_map<uint64_t, MemoryBuffer<T>>()),
+        caches_(absl::node_hash_map<uint64_t, MemoryBuffer>()),
         pages_(absl::node_hash_map<uint64_t, BufferPage>()),
         active_pages_(absl::node_hash_map<uint64_t, BufferPage>()),
         deleted_pages_(absl::node_hash_map<uint64_t, BufferPage>()),
@@ -112,10 +114,10 @@ class CacheBucket {
         continue;
       }
 
-      auto buff = caches_.emplace(i, MemoryBuffer<T>(size));
+      auto buff = caches_.emplace(i, MemoryBuffer(size));
       auto page = &pages_.at(i);
-      auto copy_state = stream_->CopyToPointer<T>(buff.first->second.Data(),
-                                                  page->start, page->size);
+      auto copy_state = stream_->CopyToPointer(buff.first->second.Data(),
+                                               page->start, page->size);
       page->cache_page_state = BufferPageState::Allocated;
       page->marked_pos = std::streampos(0);
       page->marked_size = std::streamsize(0);
@@ -220,9 +222,8 @@ class CacheBucket {
     return std::vector<BufferPointer>();
   }
 
-  std::shared_ptr<MemoryBuffer<T>> GetAsCopy(std::streampos position,
-                                             size_t size,
-                                             PageLocatorInfo& resolve_result) {
+  std::shared_ptr<MemoryBuffer> GetAsCopy(std::streampos position, size_t size,
+                                          PageLocatorInfo& resolve_result) {
     if (pages_.size() == 0) {
       resolve_result = PageLocatorInfo();
       return nullptr;
@@ -236,7 +237,7 @@ class CacheBucket {
     }
 
     if (locator->type == PageLocatorResolvement::SinglePage) {
-      auto buffer = std::make_shared<MemoryBuffer<T>>(size);
+      auto buffer = std::make_shared<MemoryBuffer>(size);
       resolve_result.Clone(*locator);
       return std::move(buffer);
     } else if (locator->type == PageLocatorResolvement::CrossPage) {
@@ -244,7 +245,7 @@ class CacheBucket {
       auto global_end = position + std::streamsize(size);
       size_t buffer_cursor = 0;
 
-      auto buffer = std::make_shared<MemoryBuffer<T>>(size);
+      auto buffer = std::make_shared<MemoryBuffer>(size);
 
       for (uint64_t i = locator->start_page_id; i <= locator->end_page_id;
            i++) {

@@ -6,6 +6,7 @@
 #include <fstream>
 
 #include "absl/container/node_hash_map.h"
+#include "absl/synchronization/mutex.h"
 #include "mavix/v1/core/aflag_once.h"
 #include "mavix/v1/core/cache_bucket.h"
 #include "mavix/v1/core/stream.h"
@@ -13,16 +14,18 @@
 namespace mavix {
 namespace v1 {
 namespace core {
-template <typename T>
+
+using namespace mavix::v1::core;
+
 class IMemoryBufferAdapter {
  public:
-  virtual bool IsStreamOpen() const = 0;
+  virtual bool IsOpen() const = 0;
 
-  virtual bool IsStreamGood() const = 0;
+  virtual bool IsGood() const = 0;
 
-  virtual bool IsStreamEof() const = 0;
+  virtual bool IsEof() const = 0;
 
-  virtual std::streamsize StreamSize() const = 0;
+  virtual std::streamsize Size() const = 0;
   virtual size_t CacheSize() const = 0;
 
   virtual std::shared_ptr<PageLocatorInfo> TryConsume(std::streampos pos,
@@ -36,7 +39,7 @@ class IMemoryBufferAdapter {
       std::streampos pos, std::streamsize size,
       PageLocatorInfo& resolve_result) = 0;
 
-  virtual std::shared_ptr<MemoryBuffer<T>> GetAsCopy(
+  virtual std::shared_ptr<MemoryBuffer> GetAsCopy(
       std::streampos pos, std::streamsize size,
       PageLocatorInfo& resolve_result) = 0;
 
@@ -50,44 +53,45 @@ class IMemoryBufferAdapter {
   virtual size_t RemoveBufferPage(uint64_t buffer_page_id) = 0;
 };
 
-template <typename T>
-class StreamBuffer : IMemoryBufferAdapter<T> {
+class StreamBuffer : public StreamBase, public IMemoryBufferAdapter {
  private:
-  core::AFlagOnce isRun_;
-  std::shared_ptr<core::Stream> stream_;
+  AFlagOnce isRun_;
+  std::shared_ptr<Stream> stream_;
   size_t cache_size_page_;
   size_t max_cache_size_;
   std::string filename_;
-  CacheBucket<T> caches_;
+  CacheBucket caches_;
+  absl::Mutex mu_;
 
  public:
   explicit StreamBuffer(const std::string& filename,
                         CacheGenerationOptions options,
                         const size_t& cache_size_page = 1024 * 1024 * 20,
                         const size_t& max_cache_size = 1024 * 1024 * 20 * 10)
-      : filename_(std::string(filename)),
+      : StreamBase(filename),
+        filename_(std::string(filename)),
         stream_(std::make_shared<Stream>(filename)),
         isRun_(AFlagOnce()),
         cache_size_page_(size_t(cache_size_page)),
         max_cache_size_(size_t(max_cache_size)),
-        caches_(CacheBucket<T>(stream_, options, cache_size_page,
-                               max_cache_size)){};
+        caches_(
+            CacheBucket(stream_, options, cache_size_page, max_cache_size)){};
 
-  ~StreamBuffer() {
-    // if (IsStreamOpen()) {
-    //   Close();
-    // }
+  ~StreamBuffer(){
+      // if (IsStreamOpen()) {
+      //   Close();
+      // }
   };
 
-  const std::string& Filename() const { return filename_; }
+  const std::string& File() const override { return filename_; }
 
-  bool IsStreamOpen() const override { return stream_->IsOpen(); }
+  bool IsOpen() const override { return stream_->IsOpen(); }
 
-  bool IsStreamGood() const override { return stream_->IsGood(); }
+  bool IsGood() const override { return stream_->IsGood(); }
 
-  bool IsStreamEof() const override { return stream_->IsEof(); }
+  bool IsEof() const override { return stream_->IsEof(); }
 
-  std::streamsize StreamSize() const override { return stream_->Size(); }
+  std::streamsize Size() const override { return stream_->Size(); }
 
   size_t CacheSize() const override { return cache_size_page_; }
 
@@ -118,18 +122,20 @@ class StreamBuffer : IMemoryBufferAdapter<T> {
     };
 
     resolve_result.Clone(*locator);
+    absl::ReaderMutexLock lock(&mu_);
     return caches_.DataInline(locator->start_page_id, pos, size, prepend);
   }
 
-  std::vector<BufferPointer> GetAsPointer(std::streampos pos,
-                                          std::streamsize size,
-                                           PageLocatorInfo& resolve_result) override {
+  std::vector<BufferPointer> GetAsPointer(
+      std::streampos pos, std::streamsize size,
+      PageLocatorInfo& resolve_result) override {
     return caches_.GetAsPointer(pos, size, resolve_result);
   }
 
-  std::shared_ptr<MemoryBuffer<T>> GetAsCopy(
+  std::shared_ptr<MemoryBuffer> GetAsCopy(
       std::streampos pos, std::streamsize size,
-      PageLocatorInfo& resolve_result )override {
+      PageLocatorInfo& resolve_result) override {
+    absl::ReaderMutexLock lock(&mu_);
     return caches_.GetAsCopy(pos, size, resolve_result);
   }
 
@@ -142,27 +148,57 @@ class StreamBuffer : IMemoryBufferAdapter<T> {
   }
 
   size_t RemoveBufferPage(std::streampos pos, std::streamsize size) override {
+    absl::ReaderMutexLock lock(&mu_);
     return caches_.RemoveCaches(pos, size);
   }
 
   size_t RemoveBufferPage(uint64_t buffer_page_id) override {
+    absl::ReaderMutexLock lock(&mu_);
     return caches_.RemoveCaches(buffer_page_id);
   }
 
-  IMemoryBufferAdapter<T>* GetAdapter() {
-    return this;
-  }
+  IMemoryBufferAdapter* GetAdapter() { return this; }
 
-  core::StreamState Open() {
+  StreamState Open() override {
+    absl::ReaderMutexLock lock(&mu_);
+    if (isRun_.State()) return StreamState::AlreadyOpen;
+
     auto state = stream_->Open();
     caches_.Reset();
     return state;
   }
 
-  core::StreamState Close() {
+  StreamState Close() override {
+    absl::ReaderMutexLock lock(&mu_);
+    if (!isRun_.State()) return StreamState::Stoped;
+
     caches_.Destroy();
     return stream_->Close();
   }
+
+  std::streampos MoveTo(std::streampos pos) override {
+    absl::ReaderMutexLock lock(&mu_);
+    return std::streampos(-1);
+  }
+
+  virtual std::streampos CurrentPosition() override {
+    absl::ReaderMutexLock lock(&mu_);
+    return std::streampos(-1);
+  };
+
+  virtual std::streampos Next(std::streamsize size) override {
+    absl::ReaderMutexLock lock(&mu_);
+    return std::streampos(-1);
+  };
+
+  virtual std::streampos Prev(std::streamsize size) override {
+    absl::ReaderMutexLock lock(&mu_);
+    return std::streampos(-1);
+  };
+
+  virtual std::streampos Next() override { return Next(1); };
+
+  virtual std::streampos Prev() override { return Prev(1); };
 };
 
 }  // namespace core

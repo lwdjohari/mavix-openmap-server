@@ -22,11 +22,11 @@ struct BufferPointer {
   bool overlap;
 };
 
-template <typename T>
+
 struct BufferData {
   uint8_t* ptr;
   size_t size;
-  std::shared_ptr<MemoryBuffer<T>> data;
+  std::shared_ptr<MemoryBuffer> data;
   bool state;
   bool overlap;
 };
