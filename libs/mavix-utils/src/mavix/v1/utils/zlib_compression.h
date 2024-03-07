@@ -1,5 +1,6 @@
 #pragma once
 
+#include <mavix/v1/core/core.h>
 #include <zlib.h>
 
 #include <cstdint>
@@ -9,38 +10,75 @@
 #include <vector>
 
 #include "mavix/v1/core/memory_buffer.h"
-
+#include "mavix/v1/core/segment_buffer.h"
+#include "mavix/v1/utils/icompression.h"
 namespace mavix {
 namespace v1 {
 namespace utils {
-class ZlibCompression {
+
+using namespace mavix::v1::core;
+class ZlibCompression : public ICompression {
  private:
  public:
-  ZlibCompression::ZlibCompression() {}
+  ZlibCompression() {}
 
-  ZlibCompression::~ZlibCompression() {}
+  ~ZlibCompression() {}
 
-  template <typename T>
-  std::shared_ptr<core::MemoryBuffer<T>> ZlibCompression::deflateBytes(
-      std::shared_ptr<core::MemoryBuffer<T>> buffer) {
-    bool result;
+  std::shared_ptr<MemoryBuffer> Inflate(const uint8_t *source,
+                                        size_t source_size,
+                                        bool &result) override {
+    auto zs_ptr = std::make_unique<z_stream>();
+    z_stream *zs = zs_ptr.get();
+    memset(zs, 0, sizeof(z_stream));
 
-    this->deflateBytes(buffer->Ptr(0), buffer->Size(), nullptr, result);
-
-    if (!result) return nullptr;
-
-    auto s =
-        std::make_shared<core::MemoryBuffer<T>>(buffer->Id(), buffer->Size());
-
-    return std::move(s);
-  }
-
-  void ZlibCompression::deflateBytes(const uint8_t *source, size_t sourceLength,
-                                     std::vector<uint8_t> *compressed,
-                                     bool &result) {
-    if (!compressed) {
+    if (inflateInit(zs) != Z_OK) {
       result = false;
-      return;
+      return nullptr;
+    }
+
+    zs->next_in = reinterpret_cast<Bytef *>(const_cast<uint8_t *>(source));
+    zs->avail_in = source_size;
+
+    int ret;
+    SegmentBuffer buffers(32768);
+    do {
+      MemoryBuffer outbuffer(32768);
+      zs->next_out = reinterpret_cast<Bytef *>(outbuffer.Data());
+      zs->avail_out = outbuffer.Size();
+
+      ret = inflate(zs, 0);
+      if (ret == Z_OK || ret == Z_STREAM_END) {
+        buffers.Add(std::move(outbuffer));
+        // decompressed->insert(decompressed->end(), outbuffer.Begin(),
+        //                      outbuffer.Begin() + (32768 - zs->avail_out));
+      } else {
+        outbuffer.Destroy();
+      }
+
+    } while (ret == Z_OK);
+
+    inflateEnd(zs);
+
+    if (ret != Z_STREAM_END) {
+      result = false;
+      return nullptr;
+      // std::ostringstream oss;
+      // oss << "Exception during decompression: (" << ret << ") " << zs.msg;
+      // throw std::runtime_error(oss.str());
+    }
+
+    result = true;
+
+    auto flat_buffer= buffers.GetAsMemoryBuffer();
+    buffers.Destroy();
+    return std::move(flat_buffer);
+  };
+
+  std::shared_ptr<MemoryBuffer> Deflate(const uint8_t *source, size_t size,
+                                        bool &result) override {
+    if (!source || size == 0) {
+      result = false;
+      return nullptr;
     }
 
     auto zs_ptr = std::make_unique<z_stream>();
@@ -49,22 +87,26 @@ class ZlibCompression {
 
     if (deflateInit(zs, Z_DEFAULT_COMPRESSION) != Z_OK) {
       result = false;
-      return;
+      return nullptr;
     }
 
     zs->next_in = reinterpret_cast<Bytef *>(const_cast<uint8_t *>(source));
-    zs->avail_in = sourceLength;
+    zs->avail_in = size;
 
     int ret;
+    SegmentBuffer buffers(32768);
     do {
-      std::vector<uint8_t> outbuffer(32768);
-      zs->next_out = reinterpret_cast<Bytef *>(outbuffer.data());
-      zs->avail_out = outbuffer.size();
+      MemoryBuffer outbuffer(32768);
+      zs->next_out = reinterpret_cast<Bytef *>(outbuffer.Data());
+      zs->avail_out = outbuffer.Size();
 
       ret = deflate(zs, Z_FINISH);
       if (ret == Z_OK || ret == Z_STREAM_END) {
-        compressed->insert(compressed->end(), outbuffer.begin(),
-                           outbuffer.begin() + (32768 - zs->avail_out));
+        buffers.Add(std::move(outbuffer));
+        // compressed->insert(compressed->end(), outbuffer.begin(),
+        //                    outbuffer.begin() + (32768 - zs->avail_out));
+      } else {
+        outbuffer.Destroy();
       }
     } while (ret == Z_OK);
 
@@ -72,7 +114,7 @@ class ZlibCompression {
 
     if (ret != Z_STREAM_END) {
       result = false;
-      return;
+      return nullptr;
 
       // std::ostringstream oss;
       // oss << "Exception during compression: (" << ret << ") " << zs.msg;
@@ -80,53 +122,22 @@ class ZlibCompression {
     }
 
     result = true;
+
+    auto flat_buffer= buffers.GetAsMemoryBuffer();
+    buffers.Destroy();
+    return std::move(flat_buffer);
+  };
+
+  std::shared_ptr<MemoryBuffer> Deflate(
+      std::shared_ptr<MemoryBuffer> buffer) override {
+    bool result;
+    return Deflate(buffer->Data(), buffer->Size(), result);
   }
 
-  template <typename T>
-  std::shared_ptr<core::MemoryBuffer<T>> ZlibCompression::inflateBytes(
-      std::shared_ptr<core::MemoryBuffer<T>> buffer) {
-    return std::shared_ptr<core::MemoryBuffer<T>>();
-  }
-
-  void ZlibCompression::inflateBytes(const uint8_t *source, size_t sourceLength,
-                                     std::vector<uint8_t> *decompressed,
-                                     bool &result) {
-    auto zs_ptr = std::make_unique<z_stream>();
-    z_stream *zs = zs_ptr.get();
-    memset(zs, 0, sizeof(z_stream));
-
-    if (inflateInit(zs) != Z_OK) {
-      result = false;
-      return;
-    }
-
-    zs->next_in = reinterpret_cast<Bytef *>(const_cast<uint8_t *>(source));
-    zs->avail_in = sourceLength;
-
-    int ret;
-    do {
-      std::vector<uint8_t> outbuffer(32768);
-      zs->next_out = reinterpret_cast<Bytef *>(outbuffer.data());
-      zs->avail_out = outbuffer.size();
-
-      ret = inflate(zs, 0);
-      if (ret == Z_OK || ret == Z_STREAM_END) {
-        decompressed->insert(decompressed->end(), outbuffer.begin(),
-                             outbuffer.begin() + (32768 - zs->avail_out));
-      }
-    } while (ret == Z_OK);
-
-    inflateEnd(zs);
-
-    if (ret != Z_STREAM_END) {
-      result = false;
-      return;
-      // std::ostringstream oss;
-      // oss << "Exception during decompression: (" << ret << ") " << zs.msg;
-      // throw std::runtime_error(oss.str());
-    }
-
-    result = true;
+  std::shared_ptr<MemoryBuffer> Inflate(
+      std::shared_ptr<MemoryBuffer> buffer) override {
+    bool result;
+    return Inflate(buffer->Data(), buffer->Size(), result);
   }
 };
 
