@@ -1,23 +1,36 @@
 #pragma once
 
-#include <cstdint>
+#include <mavix/v1/core/core.h>
 
+#include <cstdint>
+#include <sstream>
+
+#include "absl/container/node_hash_map.h"
+#include "mavix/v1/osm/element_base.h"
 namespace mavix {
 namespace v1 {
 namespace osm {
 namespace formats {
 
-class OSMFileheader {
+class OSMFileheader : public ElementBase {
  private:
-  bool isSupportedFeatures_;
-
  public:
-  explicit OSMFileheader(bool isSupportedFeature)
-      : isSupportedFeatures_(isSupportedFeature) {}
+  explicit OSMFileheader()
+      : ElementBase(
+            0, ElementType::FileHeader,
+            std::move(
+                absl::node_hash_map<std::string, BasicElementProperty>())) {}
 
   ~OSMFileheader() {}
 
-  bool isSupportedFeatures() { return isSupportedFeatures_; }
+  std::string ToString() const override {
+    std::ostringstream info;
+    info << "OsmHeader: "
+         << "{tags="
+         << "}";
+
+    return std::move(info.str());
+  };
 };
 
 }  // namespace formats

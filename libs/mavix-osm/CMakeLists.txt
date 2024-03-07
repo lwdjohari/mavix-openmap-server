@@ -118,6 +118,7 @@ file(GLOB_RECURSE SOURCES_MAVIX_OSM CONFIGURE_DEPENDS
 add_library(${PROJECT_NAME} ${SOURCES_MAVIX_OSM} )
 target_link_libraries(${PROJECT_NAME} 
     mavix-core-v1
+    mavix-utils-v1
     nvm-core
     tinyxml2 
     )

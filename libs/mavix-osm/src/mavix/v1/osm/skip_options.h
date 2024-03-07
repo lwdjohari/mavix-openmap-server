@@ -10,9 +10,9 @@ namespace osm {
     
 enum class SkipOptions : uint8_t {
   None = 0,
-  SkipWays = 1,
-  SkipNodes = 2,
-  SkipRelations = 4
+  Ways = 1,
+  Nodes = 2,
+  Relations = 4
 };
 
 NVM_ENUMCLASS_ENABLE_BITMASK_OPERATORS(SkipOptions);

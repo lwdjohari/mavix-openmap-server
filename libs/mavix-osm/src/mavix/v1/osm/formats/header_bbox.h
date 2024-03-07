@@ -4,41 +4,56 @@
 #include <cstdint>
 #include <tuple>
 
-#include "nvm/types/extended_type.h"
-
 namespace mavix {
 namespace v1 {
 namespace osm {
 namespace formats {
 
-using namespace nvm::types::extended;
-
 class HeaderBBox {
  private:
-  sint64_t l_;
-  sint64_t r_;
-  sint64_t t_;
-  sint64_t b_;
-  std::tuple<sint64_t, sint64_t, sint64_t, sint64_t> bbox_;
+  int64_t l_;
+  int64_t r_;
+  int64_t t_;
+  int64_t b_;
+  std::string source_;
+  std::tuple<int64_t, int64_t, int64_t, int64_t> bbox_;
 
  public:
-  HeaderBBox() : l_(0), r_(0), t_(0), b_(0), bbox_(0, 0, 0, 0) {}
+  HeaderBBox() : l_(0), r_(0), t_(0), b_(0), bbox_(0, 0, 0, 0), source_() {}
 
-  HeaderBBox(sint64_t l, sint64_t r, sint64_t t, sint64_t b)
-      : l_(l), r_(r), t_(t), b_(b), bbox_(l, r, t, b) {}
+  explicit HeaderBBox(const std::string &source)
+      : l_(0),
+        r_(0),
+        t_(0),
+        b_(0),
+        bbox_(0, 0, 0, 0),
+        source_(std::string(source)) {}
+
+  explicit HeaderBBox(int64_t l, int64_t r, int64_t t, int64_t b,
+                      const std::string &source)
+      : l_(l),
+        r_(r),
+        t_(t),
+        b_(b),
+        bbox_(l, r, t, b),
+        source_(std::string(source)) {}
 
   ~HeaderBBox() {}
 
-  sint64_t &left() { return l_; }
+  int64_t &Left() { return l_; }
 
-  sint64_t &right() { return r_; }
+  int64_t &Right() { return r_; }
 
-  sint64_t &top() { return t_; }
+  int64_t &Top() { return t_; }
 
-  sint64_t &bottom() { return b_; }
+  int64_t &Bottom() { return b_; }
 
-  std::tuple<sint64_t, sint64_t, sint64_t, sint64_t> &bbox() {
+  std::tuple<int64_t, int64_t, int64_t, int64_t> &BoundingBox() {
     return bbox_;
+  }
+
+  std::tuple<int64_t, int64_t, int64_t, int64_t> CloneBoundingBox() {
+    return {int64_t(l_), int64_t(r_), int64_t(t_), int64_t(b_)};
   }
 };
 }  // namespace formats

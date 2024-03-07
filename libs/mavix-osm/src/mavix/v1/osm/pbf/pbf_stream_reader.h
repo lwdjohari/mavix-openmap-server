@@ -10,28 +10,33 @@
 #include "mavix/v1/core/stream.h"
 #include "mavix/v1/core/stream_buffer.h"
 #include "mavix/v1/osm/block_type.h"
+#include "mavix/v1/osm/pbf/pbf_decoder.h"
 #include "mavix/v1/osm/pbf/pbf_tokenizer.h"
 #include "mavix/v1/osm/skip_options.h"
-
 namespace mavix {
 namespace v1 {
 namespace osm {
 namespace pbf {
 
+/// @brief  Class for decoding PBF file into OSM Data Structures.
+///         This class designed for multi-threaded processing by utilized
+///         one-producer and multi-consumer approach.
+///         Use wait() method for waiting until decoder finished all processing.
+/// @author Linggawasistha Djohari <linggawasistha.djohari@outlook.com>
 class PbfStreamReader {
  private:
  protected:
   std::string file_;
   size_t cache_size_;
-  std::shared_ptr<core::StreamBuffer<BlockType>> stream_;
+  std::shared_ptr<core::StreamBuffer> stream_;
   SkipOptions options_;
   core::AFlagOnce isRun_;
   bool verbose_;
 
   virtual void Process() {
-    auto detector = pbf::PbfTokenizer(verbose_);
+    auto detector = pbf::PbfTokenizer(stream_->GetAdapter(), verbose_);
 
-    detector.Detect(stream_->GetAdapter(), 0);
+    detector.Split();
   }
 
  public:
@@ -44,7 +49,7 @@ class PbfStreamReader {
                            bool verbose = true)
       : file_(std::string(file)),
         cache_size_(processing_cache_size),
-        stream_(std::make_shared<core::StreamBuffer<BlockType>>(
+        stream_(std::make_shared<core::StreamBuffer>(
             file, cache_options, processing_cache_size,
             processing_cache_size * 20)),
         options_(options),
@@ -56,7 +61,7 @@ class PbfStreamReader {
   explicit PbfStreamReader(const std::string& file, bool verbose = true)
       : file_(std::string(file)),
         cache_size_(1024 * 1024 * 20),
-        stream_(std::make_shared<core::StreamBuffer<BlockType>>(
+        stream_(std::make_shared<core::StreamBuffer>(
             file, core::CacheGenerationOptions::None, 1024 * 1024 * 20,
             1024 * 1024 * 20 * 20)),
         options_(SkipOptions::None),
@@ -66,20 +71,30 @@ class PbfStreamReader {
   };
 
   ~PbfStreamReader() {
-    if (stream_->IsStreamOpen()) {
+    if (stream_->IsOpen()) {
       stream_->Close();
     }
   };
 
+  std::string GetFilename() const { return stream_->GetFilename(); };
+
+  std::string GetDirectoryPath() const { return stream_->GetDirectoryPath(); };
+
+  std::string GetDirectorySeparatorPath() const {
+    return stream_->GetDirectorySeparatorPath();
+  };
+
+  std::string GetFileExtension() const { return stream_->GetFileExtension(); };
+
   const std::string& Filename() const { return file_; }
 
-  bool IsStreamOpen() const { return stream_->IsStreamOpen(); }
+  bool IsStreamOpen() const { return stream_->IsOpen(); }
 
-  bool IsStreamGood() const { return stream_->IsStreamGood(); }
+  bool IsStreamGood() const { return stream_->IsGood(); }
 
-  bool IsStreamEof() const { return stream_->IsStreamEof(); }
+  bool IsStreamEof() const { return stream_->IsEof(); }
 
-  std::streamsize StreamSize() const { return stream_->StreamSize(); }
+  std::streamsize StreamSize() const { return stream_->Size(); }
 
   core::StreamState Open() { return stream_->Open(); }
 
