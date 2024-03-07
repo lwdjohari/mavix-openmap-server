@@ -42,9 +42,13 @@ class Relation : ElementBase {
   std::vector<RelationMember> members_;
 
  public:
-  explicit Relation(int64_t id)
-      : ElementBase(id, ElementType::Relation,
-                    absl::node_hash_map<std::string, BasicElementProperty>()),
+  explicit Relation(
+      int64_t id,
+      absl::node_hash_map<std::string, BasicElementProperty>&& props)
+      : ElementBase(
+            id, ElementType::Relation,
+            std::forward<
+                absl::node_hash_map<std::string, BasicElementProperty>>(props)),
         members_(){};
 
   ~Relation(){};
@@ -55,10 +59,10 @@ class Relation : ElementBase {
 
   std::vector<RelationMember>& Members() { return members_; }
 
-  Option<RelationMember&> Member(const size_t& index) {
-    if (index >= members_.size()) return Option<RelationMember&>();
+  Option<RelationMember> Member(const size_t& index) {
+    if (index >= members_.size()) return Option<RelationMember>();
 
-    return Option<RelationMember&>(members_.at(index));
+    return Option<RelationMember>(members_.at(index));
   }
 
   bool Remove(const size_t& index) {
@@ -81,6 +85,14 @@ class Relation : ElementBase {
                              return member.Type() == ElementType::Relation;
                            });
     return it != members_.end();
+  }
+
+  std::string ToString() const override {
+    std::stringstream info;
+    info << "Relation id:" << Id() << " {mebers=" << members_.size() << ", tags="
+         << "}";
+
+    return std::move(info.str());
   }
 };
 

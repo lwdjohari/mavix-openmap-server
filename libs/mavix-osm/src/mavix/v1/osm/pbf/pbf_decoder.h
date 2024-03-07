@@ -4,12 +4,15 @@
 
 #include <thread>
 #include <vector>
-
+#include <stdexcept>
 #include "absl/container/node_hash_set.h"
 #include "absl/synchronization/mutex.h"
 #include "mavix/v1/core/memory_buffer.h"
 #include "mavix/v1/osm/formats/header_bbox.h"
+#include "mavix/v1/osm/formats/node.h"
 #include "mavix/v1/osm/formats/osm_file_header.h"
+#include "mavix/v1/osm/formats/relation.h"
+#include "mavix/v1/osm/formats/way.h"
 #include "mavix/v1/osm/pbf/pbf_declare.h"
 #include "mavix/v1/osm/pbf/pbf_field_decoder.h"
 #include "mavix/v1/osm/skip_options.h"
@@ -24,6 +27,7 @@ namespace pbf {
 using namespace mavix::v1::core;
 using namespace mavix::v1::osm;
 using namespace mavix::v1::utils;
+namespace protobuf = google::protobuf;
 
 enum class PbfBlobCompressionType {
   None = 0,
@@ -73,6 +77,9 @@ class PbfDecoder {
 
       raw_uncompressed_ = zlib.Inflate(data_->blob_data->Data(),
                                        data_->blob_data->Size(), state);
+    }else{
+      // Not yet supported
+      throw std::runtime_error("Compresion not supported");
     }
   }
 
@@ -138,39 +145,157 @@ class PbfDecoder {
     auto is_skip_nodes =
         (skip_options_ & SkipOptions::Nodes) == SkipOptions::Nodes;
     auto is_skip_ways =
-        (skip_options_ & SkipOptions::Nodes) == SkipOptions::Ways;
+        (skip_options_ & SkipOptions::Ways) == SkipOptions::Ways;
     auto is_skip_relations =
-        (skip_options_ & SkipOptions::Relations) == SkipOptions::Ways;
+        (skip_options_ & SkipOptions::Relations) == SkipOptions::Relations;
 
     for (auto &pg : primitive_block.primitivegroup()) {
       if (!is_skip_nodes) {
+        // !TODO: Implement overload method ProcessNodes for Dense Nodes
         // ProcessNodes(pg.dense(), pbf_field_decoder);
-        // ProcessNodes(pg.nodes(), pbf_field_decoder);
+        ProcessNodes(pg.nodes(), pbf_field_decoder);
       }
 
       if (!is_skip_ways) {
-        // ProcessWays(pg.ways(), pbf_field_decoder);
+        ProcessWays(pg.ways(), pbf_field_decoder);
       }
 
       if (!is_skip_relations) {
-        // ProcessRelations(pg.relations(), pbf_field_decoder);
+        ProcessRelations(pg.relations(), pbf_field_decoder);
       }
     }
   }
 
-  void processNodes(const google::protobuf::RepeatedField<OSMPBF::Node> &nodes,
+  Option<absl::node_hash_map<std::string, BasicElementProperty>> ComposeTags(
+      const protobuf::RepeatedField<uint32_t> &keys,
+      const protobuf::RepeatedField<uint32_t> &values,
+      const PbfFieldDecoder &field_decoder) {
+    if (keys.size() != values.size()) {
+      return Option<absl::node_hash_map<std::string, BasicElementProperty>>();
+    }
+
+    auto key_iterator = keys.begin();
+    auto value_iterator = values.begin();
+
+    absl::node_hash_map<std::string, BasicElementProperty> tags;
+
+    while (key_iterator != keys.end() && value_iterator != values.end()) {
+      auto key = field_decoder.GetString(*key_iterator).unwrap();
+      auto value = field_decoder.GetString(*value_iterator).unwrap();
+      tags.emplace(
+          std::move(key),
+          ElementProperty<std::string>(
+              std::move(value), KnownPropertyType::String, std::string()));
+
+      key_iterator++;
+      value_iterator++;
+    }
+
+    return Option<absl::node_hash_map<std::string, BasicElementProperty>>(
+        std::move(tags));
+  }
+
+  void ProcessNodes(const protobuf::RepeatedPtrField<OSMPBF::Node> &nodes,
                     const PbfFieldDecoder &field_decoder) {
     for (auto &node : nodes) {
-      // absl::node_hash_map<std::string, BasicElementProperty> tags =
-      //     BuildTags(node.keys(), node.vals(), field_decoder);
+      auto tags = ComposeTags(node.keys(), node.vals(), field_decoder);
 
-      // ReaderNode osmNode = new ReaderNode(
-      //     node.getId(), fieldDecoder.decodeLatitude(node.getLat()),
-      //     fieldDecoder.decodeLatitude(node.getLon()));
-      // osmNode.setTags(tags);
+      auto osm_node = formats::Node(
+          node.id(), field_decoder.DecodeLatitude(node.lat()),
+          field_decoder.DecodeLongitude(node.lon()), std::move(tags.unwrap()));
 
-      // // Add the bound object to the results.
-      // decodedEntities.add(osmNode);
+     
+      // elements_.emplace_back(osm_node);
+    }
+  }
+
+  void ProcessWays(const protobuf::RepeatedPtrField<OSMPBF::Way> &ways,
+                   const PbfFieldDecoder &field_decoder) {
+    for (auto &way : ways) {
+      auto tags = ComposeTags(way.keys(), way.vals(), field_decoder);
+
+      auto osm_way = formats::Way(way.id(), std::move(tags.unwrap()));
+      osm_way.InitializeNodes(way.refs_size());
+
+      // The node ids are delta encoded.
+      // id is stored as a delta against
+      // the previous one.
+
+      int64_t node_id = 0;
+      for (auto &node_offset_id : way.refs()) {
+        node_id += node_offset_id;
+        osm_way.Nodes().emplace_back(node_id);
+      }
+
+      // elements_.emplace_back(osm_way);
+    }
+  }
+
+  bool ComposeRelationMembers(
+      formats::Relation &relation,
+      const protobuf::RepeatedField<int64_t> &member_ids,
+      const protobuf::RepeatedField<int32_t> &member_roles,
+      const protobuf::RepeatedField<int32_t> &member_types,
+      const PbfFieldDecoder &field_decoder) {
+    if ((member_ids.size() != member_roles.size()) ||
+        (member_ids.size() != member_types.size())) {
+      return false;
+    }
+
+    auto member_id_iterator = member_ids.begin();
+    auto member_role_iterator = member_roles.begin();
+    auto member_type_iterator = member_types.begin();
+
+    // The member ids are delta encoded.
+    // id is stored as a delta against
+    // the previous one.
+    int64_t ref_id = 0;
+    while (member_id_iterator != member_ids.end() &&
+           member_role_iterator != member_roles.end() &&
+           member_type_iterator != member_types.end()) {
+      auto member_id = *member_id_iterator;
+      auto member_role = *member_role_iterator;
+      auto member_type = *member_type_iterator;
+
+      ref_id += member_id;
+      ElementType type = ElementType::Unknown;
+      if (member_type == OSMPBF::Relation_MemberType::Relation_MemberType_WAY) {
+        type = ElementType::Way;
+      } else if (member_type ==
+                 OSMPBF::Relation_MemberType::Relation_MemberType_RELATION) {
+        type = ElementType::Relation;
+      } else if (member_type ==
+                 OSMPBF::Relation_MemberType::Relation_MemberType_NODE) {
+        type = ElementType::Node;
+      }
+
+      if (type == ElementType::Unknown) {
+        return false;
+      }
+
+      auto member = formats::RelationMember(
+          type, ref_id, field_decoder.GetString(member_role).unwrap());
+
+      relation.Add(std::move(member));
+    }
+
+    return true;
+  }
+
+  void ProcessRelations(
+      const protobuf::RepeatedPtrField<OSMPBF::Relation> &relations,
+      const PbfFieldDecoder &field_decoder) {
+    for (auto &relation : relations) {
+      auto tags = ComposeTags(relation.keys(), relation.vals(), field_decoder);
+
+      auto osm_relation =
+          formats::Relation(relation.id(), std::move(tags.unwrap()));
+
+      ComposeRelationMembers(osm_relation, relation.memids(),
+                           relation.roles_sid(), relation.types(),
+                           field_decoder);
+
+      // elements_.emplace_back(osm_relation);
     }
   }
 };

@@ -17,20 +17,34 @@ using namespace nvm;
 
 class Way : public ElementBase {
  private:
-  std::vector<std::string> nodes_;
+  std::vector<int64_t> nodes_;
 
  public:
-  explicit Way(int64_t id)
-      : ElementBase(id, ElementType::Way,
-                    absl::node_hash_map<std::string, BasicElementProperty>()),
+  explicit Way(int64_t id,
+               absl::node_hash_map<std::string, BasicElementProperty> &&props)
+      : ElementBase(
+            id, ElementType::Way,
+            std::forward<
+                absl::node_hash_map<std::string, BasicElementProperty>>(props)),
         nodes_(){};
   ~Way(){};
 
-  std::vector<std::string> Nodes() { return nodes_; }
+  bool InitializeNodes(const size_t &size) {
+    if (size == 0) return false;
+
+    if (nodes_.size() > 0) nodes_.clear();
+
+    nodes_ = std::vector<int64_t>();
+    nodes_.reserve(size);
+
+    return true;
+  }
+
+  std::vector<int64_t> &Nodes() { return nodes_; }
 
   std::string ToString() const override {
     std::stringstream info;
-    info << "Way id:" + Id() << " {nodes=" << nodes_.size() + ", tags="
+    info << "Way id:" << Id() << " {nodes=" << nodes_.size() << ", tags="
          << "}";
 
     return std::move(info.str());
