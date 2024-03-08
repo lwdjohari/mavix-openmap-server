@@ -6,6 +6,10 @@
 // #define MAVIX_DEBUG_STREAM_BUFFER
 // #endif
 
+#ifndef MAVIX_DEBUG_OSM_THREAD
+#define MAVIX_DEBUG_OSM_THREAD
+#endif
+
 #include <gperftools/malloc_extension.h>
 #include <mavix/v1/core/core.h>
 
@@ -13,6 +17,7 @@
 #include <iostream>
 
 #include "mavix/v1/core/stream_buffer.h"
+#include "mavix/v1/osm/osm_pbf_reader.h"
 #include "mavix/v1/osm/pbf/pbf_stream_reader.h"
 #include "nvm/strings/readable_bytes.h"
 
@@ -35,19 +40,21 @@ void TCMallocInfo() {
 int main() {
   std::streamsize processing_size = std::streamsize(0);
   bool print_buffer_page = false;
-  bool verbose = true;
+  bool verbose = false;
   bool loop_test = false;
   bool loop_flag = true;
+  auto workers = std::thread::hardware_concurrency();
+  // auto workers = 8;
 
-  std::string pbf_files[] = {// "./osm-example/sample.pbf",
+  std::string pbf_files[] = {
                              "/home/txv/osm-data/2024/brunei.osm.pbf",
-                            //  "/home/txv/osm-data/2024/east_timor.osm.pbf",
-                            //  "/home/txv/osm-data/2024/philippines.osm.pbf",
-                            //  "/home/txv/osm-data/2024/thailand.osm.pbf",
-                            //  "/home/txv/osm-data/2024/singapore.osm.pbf",
+                             "/home/txv/osm-data/2024/east_timor.osm.pbf",
+                             "/home/txv/osm-data/2024/philippines.osm.pbf",
+                             "/home/txv/osm-data/2024/thailand.osm.pbf",
+                             "/home/txv/osm-data/2024/singapore.osm.pbf",
                              "/home/txv/osm-data/2024/malaysia.osm.pbf",
-                            //  "/home/txv/osm-data/2024/indonesia.osm.pbf
-                            };
+                             "/home/txv/osm-data/2024/indonesia.osm.pbf",
+                             };
 
   std::cout << "\nMavix Native OSM PBF Library" << std::endl;
   std::cout << "---------------------------" << std::endl;
@@ -55,7 +62,8 @@ int main() {
   std::cout << "Pbf List" << std::endl;
 
   for (auto &pbf_file : pbf_files) {
-    std::cout << "- " << std::filesystem::path(pbf_file).filename().string() << std::endl;
+    std::cout << "- " << std::filesystem::path(pbf_file).filename().string()
+              << std::endl;
   }
   // std::string line;
   // std::cout << "\nPress any key to star processing... ";
@@ -63,48 +71,26 @@ int main() {
 
   while (loop_flag) {
     for (auto &pbf_file : pbf_files) {
-      auto stream = std::make_unique<pbf::PbfStreamReader>(pbf_file, verbose);
+      auto stream = std::make_unique<pbf::OsmPbfReader>(
+          pbf_file, SkipOptions::None, workers , 0,
+          verbose);
+      // auto stream = std::make_unique<pbf::PbfStreamReader>(pbf_file,
+      // verbose);
 
-      auto sb = std::make_unique<StreamBuffer>(
-          pbf_file, CacheGenerationOptions::None);
-
-      sb->Open();
-      auto cache_pages = sb->GetRequiredBufferPages();
-      sb->Close();
-
-      stream->Open();
-      std::cout << "\nPbf file: " << stream->GetFilename() << " ["
-                << (stream->IsStreamOpen() ? "Ok" : "Failed") << "]"
-                << std::endl;
-
-      std::cout << "Size: "
-                << strings::ConvertBytesToReadableSizeString(
-                       stream->StreamSize())
-                << std::endl;
-
-      if (print_buffer_page) {
-        for (auto &cp : cache_pages) {
-          std::cout << "Buffer page  { page_id = " << cp.first
-                    << ", start = " << cp.second.start
-                    << ", end = " << cp.second.end
-                    << ", size = " << cp.second.size << "}" << std::endl;
-        }
-        std::cout << std::endl;
-      }
-
-      processing_size += stream->StreamSize();
+      // stream->Open();
       stream->Start();
+      stream->Join();
+      stream->Stop();
 
       // TCMallocInfo();
-      stream->Stop();
     }
     if (!loop_test) {
       loop_flag = false;
     }
   }
 
-  std::cout << "\nTotal pbf processing size: "
-            << strings::ConvertBytesToReadableSizeString(processing_size)
-            << std::endl;
+  // std::cout << "\nTotal pbf processing size: "
+  //           << strings::ConvertBytesToReadableSizeString(processing_size)
+  //           << std::endl;
   return 0;
 }

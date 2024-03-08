@@ -163,6 +163,7 @@ class StreamBuffer : public StreamBase, public IMemoryBufferAdapter {
     absl::ReaderMutexLock lock(&mu_);
     if (isRun_.State()) return StreamState::AlreadyOpen;
 
+    isRun_.Signal();
     auto state = stream_->Open();
     caches_.Reset();
     return state;

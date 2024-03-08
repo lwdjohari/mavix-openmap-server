@@ -3,13 +3,13 @@
 
 #include <cstdint>
 #include <tuple>
-
+#include "mavix/v1/osm/element_base.h"
 namespace mavix {
 namespace v1 {
 namespace osm {
 namespace formats {
 
-class HeaderBBox {
+class HeaderBBox  {
  private:
   int64_t l_;
   int64_t r_;

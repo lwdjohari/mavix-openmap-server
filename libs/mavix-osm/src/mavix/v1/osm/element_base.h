@@ -36,7 +36,7 @@ class BasicElementProperty {
       : propertyType_(KnownPropertyType::Unknown), type_(std::string()){};
   BasicElementProperty(KnownPropertyType prop_type, const std::string &type)
       : propertyType_(prop_type), type_(std::string(type)){};
-  ~BasicElementProperty();
+  ~BasicElementProperty(){};
 
   KnownPropertyType PropertyType() { return propertyType_; }
 
@@ -70,7 +70,8 @@ class ElementBase {
       : id_(id), properties_(tags), type_(type){};
 
  public:
-  ~ElementBase(){};
+  
+  virtual ~ElementBase(){};
 
   constexpr static double COORDINATE_SCALING_FACTOR = 0.000000001;
   int64_t Id() const { return id_; }
@@ -108,7 +109,9 @@ class ElementBase {
 
   void ClearTags() { properties_.clear(); }
 
-  virtual std::string ToString() const = 0;
+  virtual std::string ToString() const {
+    return std::string();
+  };
 };
 
 }  // namespace osm

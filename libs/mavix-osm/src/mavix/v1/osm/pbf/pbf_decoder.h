@@ -2,14 +2,16 @@
 
 #include <mavix/v1/core/core.h>
 
+#include <stdexcept>
 #include <thread>
 #include <vector>
-#include <stdexcept>
+
 #include "absl/container/node_hash_set.h"
 #include "absl/synchronization/mutex.h"
 #include "mavix/v1/core/memory_buffer.h"
 #include "mavix/v1/osm/formats/header_bbox.h"
 #include "mavix/v1/osm/formats/node.h"
+#include "mavix/v1/osm/element_base.h"
 #include "mavix/v1/osm/formats/osm_file_header.h"
 #include "mavix/v1/osm/formats/relation.h"
 #include "mavix/v1/osm/formats/way.h"
@@ -18,6 +20,7 @@
 #include "mavix/v1/osm/skip_options.h"
 #include "mavix/v1/utils/compression.h"
 #include "osmpbf/osmpbf.h"
+
 
 namespace mavix {
 namespace v1 {
@@ -47,9 +50,10 @@ class PbfDecoder {
         isDataValid_(false),
         skip_options_(options),
         compression_type_(PbfBlobCompressionType::None),
-        raw_uncompressed_(nullptr){
-
-        };
+        raw_uncompressed_(nullptr),
+        elements_(std::make_shared<std::vector<ElementBase>>()) {
+    elements_->reserve(50);
+  };
 
   ~PbfDecoder() {
     if (raw_uncompressed_ &&
@@ -58,7 +62,12 @@ class PbfDecoder {
     }
   };
 
+  std::shared_ptr<std::vector<ElementBase>> Elements() const {
+    return elements_;
+  }
+
   std::shared_ptr<PbfBlobData> PbfBlob() { return data_; }
+
 
   void Decode() {
     if (compression_type_ != PbfBlobCompressionType::None) return;
@@ -77,7 +86,12 @@ class PbfDecoder {
 
       raw_uncompressed_ = zlib.Inflate(data_->blob_data->Data(),
                                        data_->blob_data->Size(), state);
-    }else{
+
+      // if (!state) {
+      //   std::cout << "Zlib failed to uncompressed" << std::endl;
+      //   // throw std::runtime_error("Zlib failed to uncompressed");
+      // }
+    } else {
       // Not yet supported
       throw std::runtime_error("Compresion not supported");
     }
@@ -85,7 +99,7 @@ class PbfDecoder {
 
  private:
   absl::Mutex mu_;
-
+  std::shared_ptr<std::vector<ElementBase>> elements_;
   std::shared_ptr<PbfBlobData> data_;
   std::shared_ptr<MemoryBuffer> raw_uncompressed_;
   bool isDataValid_;
@@ -118,9 +132,10 @@ class PbfDecoder {
         "timestamp",
         ElementProperty(timestamp, KnownPropertyType::Int64, std::string()));
 
+    formats::HeaderBBox bound;
     if (pbf_header.has_bbox()) {
       auto pbf_bbox = pbf_header.bbox();
-      auto bound = formats::HeaderBBox(
+      bound = formats::HeaderBBox(
           pbf_bbox.right() * ElementBase::COORDINATE_SCALING_FACTOR,
           pbf_bbox.left() * ElementBase::COORDINATE_SCALING_FACTOR,
           pbf_bbox.top() * ElementBase::COORDINATE_SCALING_FACTOR,
@@ -128,8 +143,11 @@ class PbfDecoder {
           pbf_header.source());
 
     } else {
-      auto bound = formats::HeaderBBox(pbf_header.source());
+      bound = formats::HeaderBBox(pbf_header.source());
     }
+
+    elements_->emplace_back(std::move(header_file));
+    // elements_->emplace_back(std::move(bound));
   }
 
   void DecodeOsmPrimitives() {
@@ -204,8 +222,7 @@ class PbfDecoder {
           node.id(), field_decoder.DecodeLatitude(node.lat()),
           field_decoder.DecodeLongitude(node.lon()), std::move(tags.unwrap()));
 
-     
-      // elements_.emplace_back(osm_node);
+      elements_->emplace_back(std::move(osm_node));
     }
   }
 
@@ -227,7 +244,7 @@ class PbfDecoder {
         osm_way.Nodes().emplace_back(node_id);
       }
 
-      // elements_.emplace_back(osm_way);
+      elements_->emplace_back(std::move(osm_way));
     }
   }
 
@@ -277,6 +294,11 @@ class PbfDecoder {
           type, ref_id, field_decoder.GetString(member_role).unwrap());
 
       relation.Add(std::move(member));
+
+      elements_->emplace_back(std::move(relation));
+      member_id_iterator++;
+      member_role_iterator++;
+      member_type_iterator++;
     }
 
     return true;
@@ -292,10 +314,10 @@ class PbfDecoder {
           formats::Relation(relation.id(), std::move(tags.unwrap()));
 
       ComposeRelationMembers(osm_relation, relation.memids(),
-                           relation.roles_sid(), relation.types(),
-                           field_decoder);
+                             relation.roles_sid(), relation.types(),
+                             field_decoder);
 
-      // elements_.emplace_back(osm_relation);
+      elements_->emplace_back(std::move(osm_relation));
     }
   }
 };

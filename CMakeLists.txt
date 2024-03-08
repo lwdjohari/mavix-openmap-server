@@ -5,6 +5,7 @@ message( "MAVIX | Open Map Server v1")
 message( "---------------------------")
 message(STATUS "MAVIX LIB DIR : ${CMAKE_CURRENT_SOURCE_DIR}")
 
+set(CMAKE_BUILD_TYPE Debug)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})

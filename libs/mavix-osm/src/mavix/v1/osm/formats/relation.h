@@ -37,7 +37,7 @@ class RelationMember {
   std::string Role() const { return role_; }
 };
 
-class Relation : ElementBase {
+class Relation : public ElementBase {
  private:
   std::vector<RelationMember> members_;
 
@@ -89,7 +89,7 @@ class Relation : ElementBase {
 
   std::string ToString() const override {
     std::stringstream info;
-    info << "Relation id:" << Id() << " {mebers=" << members_.size() << ", tags="
+    info << "Relation id:" << Id() << " {members=" << members_.size() << ", tags="
          << "}";
 
     return std::move(info.str());

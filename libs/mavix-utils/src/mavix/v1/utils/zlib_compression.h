@@ -32,46 +32,54 @@ class ZlibCompression : public ICompression {
     memset(zs, 0, sizeof(z_stream));
 
     if (inflateInit(zs) != Z_OK) {
+      inflateEnd(zs);
       result = false;
       return nullptr;
     }
 
-    zs->next_in = reinterpret_cast<Bytef *>(const_cast<uint8_t *>(source));
-    zs->avail_in = source_size;
+    // zs->next_in = reinterpret_cast<Bytef *>(const_cast<uint8_t *>(source));
+    // zs->avail_in = source_size;
 
-    int ret;
-    SegmentBuffer buffers(32768);
-    do {
-      MemoryBuffer outbuffer(32768);
-      zs->next_out = reinterpret_cast<Bytef *>(outbuffer.Data());
-      zs->avail_out = outbuffer.Size();
+    // int ret;
+    // SegmentBuffer buffers(32768);
+    // do {
+    //   MemoryBuffer outbuffer(32768);
+    //   zs->next_out = reinterpret_cast<Bytef *>(outbuffer.Data());
+    //   zs->avail_out = outbuffer.Size();
 
-      ret = inflate(zs, 0);
-      if (ret == Z_OK || ret == Z_STREAM_END) {
-        buffers.Add(std::move(outbuffer));
-        // decompressed->insert(decompressed->end(), outbuffer.Begin(),
-        //                      outbuffer.Begin() + (32768 - zs->avail_out));
-      } else {
-        outbuffer.Destroy();
-      }
+    //   ret = inflate(zs, 0);
+    //   if (ret == Z_OK || ret == Z_STREAM_END) 
+    //   {
+    //     std::cout << "INflate success" << std::endl;
 
-    } while (ret == Z_OK);
+    //     buffers.Add(std::move(outbuffer));
+    //     // decompressed->insert(decompressed->end(), outbuffer.Begin(),
+    //     //                      outbuffer.Begin() + (32768 - zs->avail_out));
+    //   } else {
+    //     std::cout << "INflate failed" << std::endl;
+    //     outbuffer.Destroy();
+    //   }
 
-    inflateEnd(zs);
+    // } while (ret == Z_OK);
 
-    if (ret != Z_STREAM_END) {
-      result = false;
-      return nullptr;
-      // std::ostringstream oss;
-      // oss << "Exception during decompression: (" << ret << ") " << zs.msg;
-      // throw std::runtime_error(oss.str());
-    }
+    // inflateEnd(zs);
 
-    result = true;
+    // if (ret != Z_STREAM_END) {
+    //   result = false;
+    //   return nullptr;
+    //   // std::ostringstream oss;
+    //   // oss << "Exception during decompression: (" << ret << ") " << zs.msg;
+    //   // throw std::runtime_error(oss.str());
+    // }
 
-    auto flat_buffer= buffers.GetAsMemoryBuffer();
-    buffers.Destroy();
-    return std::move(flat_buffer);
+    // result = true;
+
+    // auto flat_buffer = buffers.GetAsMemoryBuffer();
+
+    // std::cout << "BUFFER:" << ((!flat_buffer) ? 0 : flat_buffer->Size())
+    //           << std::endl;
+    // if (flat_buffer) buffers.Destroy();
+    return nullptr;
   };
 
   std::shared_ptr<MemoryBuffer> Deflate(const uint8_t *source, size_t size,
@@ -123,7 +131,7 @@ class ZlibCompression : public ICompression {
 
     result = true;
 
-    auto flat_buffer= buffers.GetAsMemoryBuffer();
+    auto flat_buffer = buffers.GetAsMemoryBuffer();
     buffers.Destroy();
     return std::move(flat_buffer);
   };

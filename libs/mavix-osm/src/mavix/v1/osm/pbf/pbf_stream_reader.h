@@ -3,6 +3,7 @@
 #include <mavix/v1/core/core.h>
 
 #include <cstdint>
+#include <functional>
 #include <memory>
 
 #include "mavix/v1/core/aflag_once.h"
@@ -26,6 +27,20 @@ namespace pbf {
 class PbfStreamReader {
  private:
  protected:
+  void (*on_tokenizer_start_callback_)(PbfTokenizer* sender,
+                                       core::StreamState state);
+
+  void (*on_tokenizer_err_)(PbfTokenizer* sender, pbf::PbfTokenizerErr err);
+
+  void (*on_tokenizer_finished_callback_)(PbfTokenizer* sender,
+                                          core::StreamState state);
+
+  std::function<void(PbfTokenizer*, std::shared_ptr<pbf::PbfBlobData>)>
+      on_pbf_raw_blob_ready_;
+
+  void (*on_osm_data_ready_)(PbfTokenizer* sender,
+                             std::shared_ptr<osm::ElementBase> osm_element);
+
   std::string file_;
   size_t cache_size_;
   std::shared_ptr<core::StreamBuffer> stream_;
@@ -34,9 +49,21 @@ class PbfStreamReader {
   bool verbose_;
 
   virtual void Process() {
-    auto detector = pbf::PbfTokenizer(stream_->GetAdapter(), verbose_);
+    auto tokenizer = pbf::PbfTokenizer(stream_->GetAdapter(), verbose_);
 
-    detector.Split();
+    if (on_tokenizer_err_) tokenizer.OnDataError(on_tokenizer_err_);
+    if (on_pbf_raw_blob_ready_) tokenizer.OnDataReady(on_pbf_raw_blob_ready_);
+    if (on_tokenizer_start_callback_)
+      tokenizer.OnStarted(on_tokenizer_start_callback_);
+    if (on_tokenizer_finished_callback_)
+      tokenizer.OnFinished(on_tokenizer_finished_callback_);
+
+    tokenizer.Split();
+
+    tokenizer.OnDataErrorUnregister();
+    tokenizer.OnDataReadyUnregister();
+    tokenizer.OnStartedUnregister();
+    tokenizer.OnFinishedUnregister();
   }
 
  public:
@@ -54,9 +81,14 @@ class PbfStreamReader {
             processing_cache_size * 20)),
         options_(options),
         isRun_(core::AFlagOnce()),
-        verbose_(verbose) {
-    Initialize(file_, cache_size_);
-  };
+        verbose_(verbose),
+        on_osm_data_ready_(nullptr),
+        on_pbf_raw_blob_ready_(nullptr),
+        on_tokenizer_err_(nullptr),
+        on_tokenizer_finished_callback_(nullptr),
+        on_tokenizer_start_callback_(nullptr){
+            // Initialize(file_, cache_size_);
+        };
 
   explicit PbfStreamReader(const std::string& file, bool verbose = true)
       : file_(std::string(file)),
@@ -66,14 +98,21 @@ class PbfStreamReader {
             1024 * 1024 * 20 * 20)),
         options_(SkipOptions::None),
         isRun_(core::AFlagOnce()),
-        verbose_(verbose) {
-    Initialize(file_, cache_size_);
-  };
+        verbose_(verbose),
+        on_osm_data_ready_(nullptr),
+        on_pbf_raw_blob_ready_(nullptr),
+        on_tokenizer_err_(nullptr),
+        on_tokenizer_finished_callback_(nullptr),
+        on_tokenizer_start_callback_(nullptr){
+            // Initialize(file_, cache_size_);
+        };
 
   ~PbfStreamReader() {
     if (stream_->IsOpen()) {
       stream_->Close();
     }
+
+    on_pbf_raw_blob_ready_ = nullptr;
   };
 
   std::string GetFilename() const { return stream_->GetFilename(); };
@@ -117,6 +156,10 @@ class PbfStreamReader {
     return core::StreamState::Ok;
   }
 
+  SkipOptions DecoderOptions() const{
+    return options_;
+  }
+
   core::StreamState Stop(bool auto_close = true) {
     if (!isRun_.State()) return core::StreamState::Stoped;
 
@@ -129,8 +172,33 @@ class PbfStreamReader {
     return core::StreamState::Ok;
   }
 
-  void Initialize(const std::string& file,
-                  const size_t& processing_cache_size) {}
+  // void Initialize(const std::string& file,
+  //                 const size_t& processing_cache_size) {}
+
+  void OnDataReady(
+      std::function<void(PbfTokenizer*, std::shared_ptr<pbf::PbfBlobData>)>
+          callback) {
+    on_pbf_raw_blob_ready_ = callback;
+  }
+
+  void OnDataReadyUnregister() { on_pbf_raw_blob_ready_ = nullptr; }
+
+  void OnDataError(void (*callback)(PbfTokenizer* sender,
+                                    PbfTokenizerErr err)) {
+    on_tokenizer_err_ = callback;
+  }
+
+  void OnDataErrorUnregister() { on_tokenizer_err_ = nullptr; }
+
+  void OnStarted(void (*callback)(PbfTokenizer* sender, StreamState state)) {
+    on_tokenizer_start_callback_ = callback;
+  }
+
+  void OnStartedUnregister() { on_tokenizer_start_callback_ = nullptr; }
+
+  void OnFinished(void (*callback)(PbfTokenizer* sender, StreamState state)) {
+    on_tokenizer_finished_callback_ = callback;
+  }
 };
 
 }  // namespace pbf

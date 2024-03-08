@@ -90,7 +90,14 @@ class MemoryBuffer : public ICacheBucketBuffer {
 #endif
   }
 
-  ~MemoryBuffer() {}
+  virtual ~MemoryBuffer() {
+    // if(!is_allocated_)
+    //   return;
+
+    // buffer_.deallocate(data_, size_);
+    // is_allocated_ = false;
+    
+  }
 
   uint8_t* Ptr(size_t index) { return data_; }
 
