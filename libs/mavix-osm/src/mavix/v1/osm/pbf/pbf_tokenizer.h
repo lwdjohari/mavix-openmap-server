@@ -44,8 +44,8 @@ class PbfTokenizer {
   void (*on_tokenizer_start_callback_)(PbfTokenizer* sender,
                                        core::StreamState state);
 
-  void (*on_tokenizer_finished_callback_)(PbfTokenizer* sender,
-                                          core::StreamState state);
+  std::function<void(PbfTokenizer*, core::StreamState state)>
+      on_tokenizer_finished_callback_;
 
   std::function<void(PbfTokenizer*, std::shared_ptr<pbf::PbfBlobData>)>
       on_pbf_raw_blob_ready_;
@@ -110,7 +110,8 @@ class PbfTokenizer {
 
   void OnStartedUnregister() { on_tokenizer_start_callback_ = nullptr; }
 
-  void OnFinished(void (*callback)(PbfTokenizer* sender, StreamState state)) {
+  void OnFinished(std::function<void(PbfTokenizer*, core::StreamState state)>
+      callback) {
     on_tokenizer_finished_callback_ = callback;
   }
 
@@ -344,6 +345,8 @@ class PbfTokenizer {
                      std::streamsize(position))
               << std::endl;
 #endif
+
+    RaiseOnFinished(StreamState::Ok);
     return nvm::Option<PbfBlockMap>();
   }
 };

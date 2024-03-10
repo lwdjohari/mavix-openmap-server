@@ -177,7 +177,8 @@ class PbfDecoder {
                                                     raw_uncompressed_->Size());
     if (!is_parsed) {
 #if defined(MAVIX_DEBUG_CORE) && defined(MAVIX_DEBUG_PBF_DECODER)
-      std::cerr << "Failed parsing PRIMITIVE GROUPS from bytes stream" << std::endl;
+      std::cerr << "Failed parsing PRIMITIVE GROUPS from bytes stream"
+                << std::endl;
 #endif
       return;
     }
@@ -198,12 +199,10 @@ class PbfDecoder {
     }
 
     for (auto &pg : primitive_block.primitivegroup()) {
-#if defined(MAVIX_DEBUG_CORE) && defined(MAVIX_DEBUG_PBF_DECODER)
-      std::cout << "PRIMITIVE GROUPS" << std::endl;
-#endif
       if (!is_skip_nodes) {
         // !TODO: Implement overload method ProcessNodes for Dense Nodes
-        // ProcessNodes(pg.dense(), pbf_field_decoder);
+
+        ProcessNodes(pg.dense(), pbf_field_decoder);
         ProcessNodes(pg.nodes(), pbf_field_decoder);
       }
 
@@ -248,6 +247,8 @@ class PbfDecoder {
 
   void ProcessNodes(const protobuf::RepeatedPtrField<OSMPBF::Node> &nodes,
                     const PbfFieldDecoder &field_decoder) {
+    if (nodes.size() == 0) return;
+    std::cout << "Nodes count: " << nodes.size() << std::endl;
     for (auto &node : nodes) {
       auto tags = ComposeTags(node.keys(), node.vals(), field_decoder);
 
@@ -262,8 +263,91 @@ class PbfDecoder {
     }
   }
 
+  void ProcessNodes(const OSMPBF::DenseNodes &node,
+                    PbfFieldDecoder field_decoder) {
+    if (node.id_size() == 0) return;
+    std::cout << "Dense Nodes count: " << node.id_size() << std::endl;
+
+    auto ids = node.id();
+    auto lats = node.lat();
+    auto lons = node.lon();
+
+    if (node.id_size() != node.lon_size() ||
+        node.id_size() != node.lat_size()) {
+      return;
+    }
+
+    auto kv_iterator = node.keys_vals().begin();
+
+    int64_t node_id = 0;
+    int64_t lat = 0;
+    int64_t lon = 0;
+
+    for (size_t i = 0; i < node.id_size(); i++) {
+      node_id += ids.at(i);
+      lat += lats.at(i);
+      lon += lons.at(i);
+
+      absl::node_hash_map<std::string, BasicElementProperty> tags;
+      while (kv_iterator != node.keys_vals().end()) {
+        auto key_index = *kv_iterator;
+        if (key_index == 0) {
+          break;
+        }
+
+        kv_iterator++;
+        auto value_index = *kv_iterator;
+
+        kv_iterator++;
+      }
+
+      auto osm_node =
+          formats::Node(node_id, field_decoder.DecodeLatitude(lat),
+                        field_decoder.DecodeLongitude(lon), std::move(tags));
+
+      elements_->emplace_back(std::move(osm_node));
+    }
+
+    // Map<String, Object> tags = null;
+    // while (keysValuesIterator.hasNext()) {
+    //   int keyIndex = keysValuesIterator.next();
+    //   if (keyIndex == 0) {
+    //     break;
+    //   }
+    //   if (checkData) {
+    //     if (!keysValuesIterator.hasNext()) {
+    //       throw new RuntimeException(
+    //           "The PBF DenseInfo keys/values list contains a key with no "
+    //           "corresponding value.");
+    //     }
+    //   }
+    //   int valueIndex = keysValuesIterator.next();
+
+    //   if (tags == null) {
+    //     // divide by 2 as key&value, multiple by 2 because of the better
+    //     // approximation
+    //     tags = new HashMap<>(Math.max(
+    //         3, 2 * (nodes.getKeysValsList().size() / 2) / idList.size()));
+    //   }
+
+    //   tags.put(fieldDecoder.decodeString(keyIndex),
+    //            fieldDecoder.decodeString(valueIndex));
+    // }
+
+    // ReaderNode node =
+    //     new ReaderNode(nodeId, fieldDecoder.decodeLatitude(latitude),
+    //                    fieldDecoder.decodeLongitude(longitude));
+    // node.setTags(tags);
+
+    // // Add the bound object to the results.
+    // decodedEntities.add(node);
+    //}
+  }
+
   void ProcessWays(const protobuf::RepeatedPtrField<OSMPBF::Way> &ways,
                    const PbfFieldDecoder &field_decoder) {
+    if (ways.size() == 0) return;
+    std::cout << "Ways count: " << ways.size() << std::endl;
     for (auto &way : ways) {
       auto tags = ComposeTags(way.keys(), way.vals(), field_decoder);
 
@@ -281,7 +365,7 @@ class PbfDecoder {
       }
 
 #if defined(MAVIX_DEBUG_CORE) && defined(MAVIX_DEBUG_PBF_DECODER)
-      std::cout << osm_way.ToString() << std::endl;
+      // std::cout << osm_way.ToString() << std::endl;
 #endif
 
       elements_->emplace_back(std::move(osm_way));
@@ -347,10 +431,13 @@ class PbfDecoder {
   void ProcessRelations(
       const protobuf::RepeatedPtrField<OSMPBF::Relation> &relations,
       const PbfFieldDecoder &field_decoder) {
+        if (relations.size() == 0) return;
+    std::cout << "Relations count: " << relations.size() << std::endl;
+
     for (auto &relation : relations) {
       auto tags = ComposeTags(relation.keys(), relation.vals(), field_decoder);
 
-      std::cout << "Rel Tags:" << tags.unwrap().size() << std::endl;
+      // std::cout << "Rel Tags:" << tags.unwrap().size() << std::endl;
       auto osm_relation =
           formats::Relation(relation.id(), std::move(tags.unwrap()));
 
@@ -359,7 +446,7 @@ class PbfDecoder {
                              field_decoder);
 
 #if defined(MAVIX_DEBUG_CORE) && defined(MAVIX_DEBUG_PBF_DECODER)
-      std::cout << osm_relation.ToString() << std::endl;
+      // std::cout << osm_relation.ToString() << std::endl;
 #endif
       elements_->emplace_back(std::move(osm_relation));
     }

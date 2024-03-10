@@ -32,8 +32,8 @@ class PbfStreamReader {
 
   void (*on_tokenizer_err_)(PbfTokenizer* sender, pbf::PbfTokenizerErr err);
 
-  void (*on_tokenizer_finished_callback_)(PbfTokenizer* sender,
-                                          core::StreamState state);
+  std::function<void(PbfTokenizer*, core::StreamState state)>
+      on_tokenizer_finished_callback_;
 
   std::function<void(PbfTokenizer*, std::shared_ptr<pbf::PbfBlobData>)>
       on_pbf_raw_blob_ready_;
@@ -156,9 +156,7 @@ class PbfStreamReader {
     return core::StreamState::Ok;
   }
 
-  SkipOptions DecoderOptions() const{
-    return options_;
-  }
+  SkipOptions DecoderOptions() const { return options_; }
 
   core::StreamState Stop(bool auto_close = true) {
     if (!isRun_.State()) return core::StreamState::Stoped;
@@ -196,7 +194,8 @@ class PbfStreamReader {
 
   void OnStartedUnregister() { on_tokenizer_start_callback_ = nullptr; }
 
-  void OnFinished(void (*callback)(PbfTokenizer* sender, StreamState state)) {
+  void OnFinished(
+      std::function<void(PbfTokenizer*, core::StreamState state)> callback) {
     on_tokenizer_finished_callback_ = callback;
   }
 };
