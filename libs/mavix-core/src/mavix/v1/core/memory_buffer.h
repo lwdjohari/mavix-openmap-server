@@ -96,7 +96,6 @@ class MemoryBuffer : public ICacheBucketBuffer {
 
     // buffer_.deallocate(data_, size_);
     // is_allocated_ = false;
-    
   }
 
   uint8_t* Ptr(size_t index) { return data_; }
@@ -125,6 +124,15 @@ class MemoryBuffer : public ICacheBucketBuffer {
     if (!source || !is_allocated_ || size == 0 || size != size_) return false;
 
     std::memcpy(data_, source, size);
+    return true;
+  }
+
+  bool CopyFrom(const std::size_t& index, const uint8_t* source,
+                const size_t& size) {
+    if (!source || !is_allocated_ || index + size > size_ || size == 0)
+      return false;
+
+    std::memcpy(data_ + index, source, size);
     return true;
   }
 

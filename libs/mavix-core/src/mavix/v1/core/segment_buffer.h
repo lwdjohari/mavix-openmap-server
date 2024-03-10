@@ -20,7 +20,7 @@ class SegmentBuffer {
   explicit SegmentBuffer(size_t chunk_size)
       : chunk_size_(chunk_size),
         segement_size_(),
-        caches_(std::vector<MemoryBuffer>(chunk_size)){};
+        caches_(){};
 
   ~SegmentBuffer() {}
 
@@ -33,13 +33,15 @@ class SegmentBuffer {
   bool Add(const uint8_t *source, size_t size) {
     if (!source || size == 0 || size > chunk_size_) return false;
 
-    auto buffer = MemoryBuffer(chunk_size_);
+    auto buffer = MemoryBuffer(size);
     buffer.CopyFrom(source, size);
 
     return Add(std::move(buffer));
   }
 
-  std::shared_ptr<MemoryBuffer> GetAsMemoryBuffer() {
+  
+
+  std::shared_ptr<MemoryBuffer> CopyAsMemoryBuffer() {
     if (segement_size_ == 0) return nullptr;
 
     auto flat_buffer = std::make_shared<MemoryBuffer>(segement_size_);
@@ -49,7 +51,7 @@ class SegmentBuffer {
     for (size_t i = 0; i < caches_.size(); i++)
     {
       auto cache = &caches_.at(i);
-      flat_buffer->CopyFrom(cache->Data()+position,cache->Size());
+      flat_buffer->CopyFrom(position, cache->Data(),cache->Size());
       position+=cache->Size();
     }
     
