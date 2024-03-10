@@ -178,9 +178,9 @@ class OsmPbfReader {
         mu_.Unlock();
         tasks_received_.Inc();
 
-        pbf::PbfDecoder decoder(p,options);
-        decoder.Decode();
-        
+        auto decoder = std::make_shared<pbf::PbfDecoder>(p,options);
+        decoder->Run();
+        decoder.reset();
         p->blob_data->Destroy();
         tasks_finished_.Inc();
         mu_.Lock();
@@ -302,14 +302,9 @@ class OsmPbfReader {
       }else{
         is_run_ = false;
       }
-
-      
     }
-
       JoinProcessWorkers();
-
       ClearProcessQueue();      
-    
     {
       
       // std::cout << "Stoped" << std::endl;

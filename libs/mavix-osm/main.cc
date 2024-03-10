@@ -10,6 +10,12 @@
 #define MAVIX_DEBUG_OSM_THREAD
 #endif
 
+#ifndef MAVIX_DEBUG_PBF_DECODER
+#define MAVIX_DEBUG_PBF_DECODER
+#endif
+
+
+
 #include <gperftools/malloc_extension.h>
 #include <mavix/v1/core/core.h>
 
@@ -47,13 +53,13 @@ int main() {
   // auto workers = 8;
 
   std::string pbf_files[] = {
-                             "/home/txv/osm-data/2024/brunei.osm.pbf",
-                             "/home/txv/osm-data/2024/east_timor.osm.pbf",
-                             "/home/txv/osm-data/2024/philippines.osm.pbf",
-                             "/home/txv/osm-data/2024/thailand.osm.pbf",
+                            //  "/home/txv/osm-data/2024/brunei.osm.pbf",
+                            //  "/home/txv/osm-data/2024/east_timor.osm.pbf",
+                            //  "/home/txv/osm-data/2024/philippines.osm.pbf",
+                            //  "/home/txv/osm-data/2024/thailand.osm.pbf",
                              "/home/txv/osm-data/2024/singapore.osm.pbf",
-                             "/home/txv/osm-data/2024/malaysia.osm.pbf",
-                             "/home/txv/osm-data/2024/indonesia.osm.pbf",
+                            //  "/home/txv/osm-data/2024/malaysia.osm.pbf",
+                            //  "/home/txv/osm-data/2024/indonesia.osm.pbf",
                              };
 
   std::cout << "\nMavix Native OSM PBF Library" << std::endl;
@@ -82,7 +88,7 @@ int main() {
       stream->Join();
       stream->Stop();
 
-      // TCMallocInfo();
+      TCMallocInfo();
     }
     if (!loop_test) {
       loop_flag = false;

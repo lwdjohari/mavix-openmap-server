@@ -87,9 +87,7 @@ class PbfTokenizer {
         on_pbf_raw_blob_ready_(nullptr),
         on_tokenizer_start_callback_(nullptr),
         on_tokenizer_finished_callback_(nullptr){};
-  ~PbfTokenizer(){
-    on_pbf_raw_blob_ready_ = nullptr;
-  };
+  ~PbfTokenizer() { on_pbf_raw_blob_ready_ = nullptr; };
 
   void OnDataReady(
       std::function<void(PbfTokenizer*, std::shared_ptr<pbf::PbfBlobData>)>
@@ -136,6 +134,39 @@ class PbfTokenizer {
 
     position += std::streamsize(4);
     return header_size;
+  }
+
+  OSMPBF::Blob GetPbfBlobWithBuffer(const size_t& header_size,
+                                    const size_t& data_size,
+                                    std::streampos& position,
+                                    PageLocatorInfo& result) {
+    uint8_t* ptr = buffer_->GetAsInlinePointer(position, data_size, result);
+
+    auto blob = OSMPBF::Blob();
+
+    if (result.type == PageLocatorResolvement::SinglePage) {
+      blob.ParseFromArray(ptr, data_size);
+    } else if (result.type == PageLocatorResolvement::CrossPage) {
+      auto raw = buffer_->GetAsCopy(position, data_size, result);
+      blob.ParseFromArray(raw->Data(), data_size);
+      raw->Destroy();
+    }
+
+    if (verbose_) {
+      std::cout << "Blob { data = " << blob.data_case()
+                << ", rawsize = " << blob.raw_size()
+                << ", bytesize = " << blob.ByteSizeLong() << " }" << std::endl;
+    }
+
+    if (blob.ByteSizeLong() == 0) {
+      std::cout << "Blob mismatch :  " << blob.ByteSizeLong() << ":"
+                << data_size << std::endl;
+
+      return OSMPBF::Blob();
+    }
+
+    position += std::streamsize(blob.ByteSizeLong());
+    return std::move(blob);
   }
 
   OSMPBF::Blob GetPbfBlob(const size_t& header_size, const size_t& data_size,
@@ -192,7 +223,6 @@ class PbfTokenizer {
     uint8_t* ptr = buffer_->GetAsInlinePointer(position, header_size, result);
 
     auto header = OSMPBF::BlobHeader();
-    
 
     if (result.type == PageLocatorResolvement::SinglePage) {
       header.ParseFromArray(ptr, header_size);
@@ -218,6 +248,28 @@ class PbfTokenizer {
     position += std::streamsize(header_size);
 
     return std::move(header);
+  }
+
+  std::shared_ptr<MemoryBuffer> GetRawBufferFromProto(
+      OSMPBF::Blob& blob, bool& result, bool shrink_after_copy = true) {
+    if (blob.has_raw()) {
+      auto buffer = std::make_shared<MemoryBuffer>(blob.raw().size());
+      std::memcpy(buffer->Data(),
+                  reinterpret_cast<const uint8_t*>(blob.raw().data()),
+                  blob.raw().size());
+      if (shrink_after_copy) {
+      }
+      return buffer;
+
+    } else if (blob.has_zlib_data()) {
+      auto buffer = std::make_shared<MemoryBuffer>(blob.zlib_data().size());
+      std::memcpy(buffer->Data(),
+                  reinterpret_cast<const uint8_t*>(blob.zlib_data().data()),
+                  blob.zlib_data().size());
+      return buffer;
+    }
+
+    return nullptr;
   }
 
   void CleanupBuffer(const PageLocatorInfo& current,
@@ -255,18 +307,29 @@ class PbfTokenizer {
       prev_result = result;
       header_count++;
 
-      auto blob = GetPbfBlob(header_size, header.datasize(), position, result);
+      auto blob = GetPbfBlobWithBuffer(header_size, header.datasize(), position,
+                                       result);
       CleanupBuffer(result, prev_result);
       prev_result = result;
 
-      auto raw_pos = GetRawBufferPosition(header, blob, position);
-      position = raw_pos.first + raw_pos.second;
+      bool capture = false;
+      auto raw_buffer = GetRawBufferFromProto(blob, capture, true);
 
-      auto raw_buffer = GetRawBuffer(raw_pos.first, raw_pos.second, result);
+      std::cout << "Raw buffer: "
+                << (!raw_buffer
+                        ? "0 Bytes"
+                        : nvm::strings::ConvertBytesToReadableSizeString(
+                              raw_buffer->Size()))
+                << std::endl;
+      // auto raw_pos = GetRawBufferPosition(header, blob, position);
+      // position = raw_pos.first + raw_pos.second;
+
+      // auto raw_buffer = GetRawBuffer(raw_pos.first, raw_pos.second, result);
 
       bool raised = false;
-      auto data = std::make_shared<PbfBlobData>(header, blob, std::move(raw_buffer));
-      RaiseOnDataReady(data,  raised);
+      auto data =
+          std::make_shared<PbfBlobData>(header, blob, std::move(raw_buffer));
+      RaiseOnDataReady(data, raised);
       if (!raised) {
         data->blob_data->Destroy();
       }

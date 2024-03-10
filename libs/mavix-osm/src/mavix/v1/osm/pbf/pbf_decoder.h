@@ -9,9 +9,9 @@
 #include "absl/container/node_hash_set.h"
 #include "absl/synchronization/mutex.h"
 #include "mavix/v1/core/memory_buffer.h"
+#include "mavix/v1/osm/element_base.h"
 #include "mavix/v1/osm/formats/header_bbox.h"
 #include "mavix/v1/osm/formats/node.h"
-#include "mavix/v1/osm/element_base.h"
 #include "mavix/v1/osm/formats/osm_file_header.h"
 #include "mavix/v1/osm/formats/relation.h"
 #include "mavix/v1/osm/formats/way.h"
@@ -20,7 +20,6 @@
 #include "mavix/v1/osm/skip_options.h"
 #include "mavix/v1/utils/compression.h"
 #include "osmpbf/osmpbf.h"
-
 
 namespace mavix {
 namespace v1 {
@@ -51,15 +50,19 @@ class PbfDecoder {
         skip_options_(options),
         compression_type_(PbfBlobCompressionType::None),
         raw_uncompressed_(nullptr),
-        elements_(std::make_shared<std::vector<ElementBase>>()) {
-    elements_->reserve(50);
-  };
+        elements_(std::make_shared<std::vector<ElementBase>>()){
+            // elements_->reserve(50);
+        };
 
   ~PbfDecoder() {
+    elements_->clear();
     if (raw_uncompressed_ &&
         compression_type_ == PbfBlobCompressionType::Zlib) {
+      // std::cout << "Decoder finalized" << std::endl;
       raw_uncompressed_->Destroy();
+      raw_uncompressed_ = nullptr;
     }
+    data_ = nullptr;
   };
 
   std::shared_ptr<std::vector<ElementBase>> Elements() const {
@@ -68,32 +71,17 @@ class PbfDecoder {
 
   std::shared_ptr<PbfBlobData> PbfBlob() { return data_; }
 
+  void Run() {
+    elements_->clear();
 
-  void Decode() {
-    if (compression_type_ != PbfBlobCompressionType::None) return;
+    bool is_raw_available = GetBufferUncompressed();
+    if (data_->header.type() == "OSMHeader" && is_raw_available) {
+      // std::cout << "Process Header" << std::endl;
+      ProcessOsmHeader();
 
-    if (!data_->blob_data) return;
-
-    if (data_->blob.has_raw()) {
-      compression_type_ = PbfBlobCompressionType::Raw;
-      raw_uncompressed_ = data_->blob_data;
-
-    } else if (data_->blob.has_zlib_data()) {
-      compression_type_ = PbfBlobCompressionType::Zlib;
-
-      auto zlib = GetCompression<ZlibCompression>();
-      bool state;
-
-      raw_uncompressed_ = zlib.Inflate(data_->blob_data->Data(),
-                                       data_->blob_data->Size(), state);
-
-      // if (!state) {
-      //   std::cout << "Zlib failed to uncompressed" << std::endl;
-      //   // throw std::runtime_error("Zlib failed to uncompressed");
-      // }
-    } else {
-      // Not yet supported
-      throw std::runtime_error("Compresion not supported");
+    } else if (data_->header.type() == "OSMData" && is_raw_available) {
+      // std::cout << "Process Data" << std::endl;
+      ProcessOsmPrimitives();
     }
   }
 
@@ -106,13 +94,43 @@ class PbfDecoder {
   SkipOptions skip_options_;
   PbfBlobCompressionType compression_type_;
 
-  void DecodeOsmHeader() {
+  bool GetBufferUncompressed() {
+    if (compression_type_ != PbfBlobCompressionType::None) return false;
+
+    if (!data_->blob_data) return false;
+
+    if (data_->blob.has_raw()) {
+      compression_type_ = PbfBlobCompressionType::Raw;
+      raw_uncompressed_ = data_->blob_data;
+
+      return true;
+
+    } else if (data_->blob.has_zlib_data()) {
+      compression_type_ = PbfBlobCompressionType::Zlib;
+
+      auto zlib = GetCompression<ZlibCompression>();
+      bool state;
+
+      raw_uncompressed_ = zlib.Inflate(data_->blob_data->Data(),
+                                       data_->blob_data->Size(), state);
+
+      return state;
+    } else {
+      // Not yet supported
+      throw std::runtime_error("Compresion not supported");
+    }
+  }
+
+  void ProcessOsmHeader() {
     auto pbf_header = OSMPBF::HeaderBlock();
     auto is_parsed = pbf_header.ParseFromArray(raw_uncompressed_->Data(),
                                                raw_uncompressed_->Size());
-    if (!is_parsed) {
-      return;
-    }
+    //     if (!is_parsed) {
+    // #if defined(MAVIX_DEBUG_CORE) && defined(MAVIX_DEBUG_PBF_DECODER)
+    //       std::cerr << "OsmHeader: parsed from bytes failed" << std::endl;
+    // #endif
+    //       return;
+    //     }
 
     absl::node_hash_set<std::string> features_supported = {"OsmSchema-V0.6",
                                                            "DenseNodes"};
@@ -132,6 +150,9 @@ class PbfDecoder {
         "timestamp",
         ElementProperty(timestamp, KnownPropertyType::Int64, std::string()));
 
+#if defined(MAVIX_DEBUG_CORE) && defined(MAVIX_DEBUG_PBF_DECODER)
+    std::cout << header_file.ToString() << std::endl;
+#endif
     formats::HeaderBBox bound;
     if (pbf_header.has_bbox()) {
       auto pbf_bbox = pbf_header.bbox();
@@ -150,11 +171,14 @@ class PbfDecoder {
     // elements_->emplace_back(std::move(bound));
   }
 
-  void DecodeOsmPrimitives() {
+  void ProcessOsmPrimitives() {
     auto primitive_block = OSMPBF::PrimitiveBlock();
     auto is_parsed = primitive_block.ParseFromArray(raw_uncompressed_->Data(),
                                                     raw_uncompressed_->Size());
     if (!is_parsed) {
+#if defined(MAVIX_DEBUG_CORE) && defined(MAVIX_DEBUG_PBF_DECODER)
+      std::cerr << "Failed parsing PRIMITIVE GROUPS from bytes stream" << std::endl;
+#endif
       return;
     }
 
@@ -167,7 +191,16 @@ class PbfDecoder {
     auto is_skip_relations =
         (skip_options_ & SkipOptions::Relations) == SkipOptions::Relations;
 
+    if (skip_options_ == SkipOptions::None) {
+      is_skip_nodes = false;
+      is_skip_relations = false;
+      is_skip_ways = false;
+    }
+
     for (auto &pg : primitive_block.primitivegroup()) {
+#if defined(MAVIX_DEBUG_CORE) && defined(MAVIX_DEBUG_PBF_DECODER)
+      std::cout << "PRIMITIVE GROUPS" << std::endl;
+#endif
       if (!is_skip_nodes) {
         // !TODO: Implement overload method ProcessNodes for Dense Nodes
         // ProcessNodes(pg.dense(), pbf_field_decoder);
@@ -178,9 +211,9 @@ class PbfDecoder {
         ProcessWays(pg.ways(), pbf_field_decoder);
       }
 
-      if (!is_skip_relations) {
-        ProcessRelations(pg.relations(), pbf_field_decoder);
-      }
+      // if (!is_skip_relations) {
+      //   ProcessRelations(pg.relations(), pbf_field_decoder);
+      // }
     }
   }
 
@@ -222,6 +255,9 @@ class PbfDecoder {
           node.id(), field_decoder.DecodeLatitude(node.lat()),
           field_decoder.DecodeLongitude(node.lon()), std::move(tags.unwrap()));
 
+#if defined(MAVIX_DEBUG_CORE) && defined(MAVIX_DEBUG_PBF_DECODER)
+      std::cout << osm_node.ToString() << std::endl;
+#endif
       elements_->emplace_back(std::move(osm_node));
     }
   }
@@ -243,6 +279,10 @@ class PbfDecoder {
         node_id += node_offset_id;
         osm_way.Nodes().emplace_back(node_id);
       }
+
+#if defined(MAVIX_DEBUG_CORE) && defined(MAVIX_DEBUG_PBF_DECODER)
+      std::cout << osm_way.ToString() << std::endl;
+#endif
 
       elements_->emplace_back(std::move(osm_way));
     }
@@ -310,6 +350,7 @@ class PbfDecoder {
     for (auto &relation : relations) {
       auto tags = ComposeTags(relation.keys(), relation.vals(), field_decoder);
 
+      std::cout << "Rel Tags:" << tags.unwrap().size() << std::endl;
       auto osm_relation =
           formats::Relation(relation.id(), std::move(tags.unwrap()));
 
@@ -317,6 +358,9 @@ class PbfDecoder {
                              relation.roles_sid(), relation.types(),
                              field_decoder);
 
+#if defined(MAVIX_DEBUG_CORE) && defined(MAVIX_DEBUG_PBF_DECODER)
+      std::cout << osm_relation.ToString() << std::endl;
+#endif
       elements_->emplace_back(std::move(osm_relation));
     }
   }
