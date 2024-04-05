@@ -35,6 +35,8 @@ namespace osmf = mavix::v1::osm::formats;
 namespace core = mavix::v1::core;
 
 class OsmPbfReader {
+  using Concurrent_T = core::ConcurrentQueue<pbf::PbfBlobData>;
+
  private:
   void (*on_reader_start_callback_)(OsmPbfReader* sender,
                                     core::StreamState state);
@@ -47,7 +49,6 @@ class OsmPbfReader {
 
   void (*on_osm_data_ready_)(OsmPbfReader* sender,
                              std::shared_ptr<osm::ElementBase> osm_element);
-
   absl::Mutex mu_;
   absl::Mutex mu_worker_;
 
@@ -55,7 +56,7 @@ class OsmPbfReader {
   absl::CondVar cv_all_threads_ready_;
   absl::CondVar cv_processing_;
 
-  std::allocator<core::ConcurrentQueue<pbf::PbfBlobData>> queue_shard_;
+  std::allocator<Concurrent_T> queue_shard_;
   std::thread main_worker_;
   std::vector<std::thread> process_workers_;
 
@@ -69,7 +70,7 @@ class OsmPbfReader {
   core::AsyncCounter<size_t> tasks_created_;
 
   core::RoundRobinScheduler round_robin_;
-  std::vector<core::ConcurrentQueue<pbf::PbfBlobData>*> processing_queue_ptr_;
+  std::vector<Concurrent_T*> processing_queue_ptr_;
   bool verbose_;
 
   pbf::PbfStreamReader stream_;
@@ -80,7 +81,7 @@ class OsmPbfReader {
   bool already_joined_;
   bool processing_already_joined_;
 
-  core::ConcurrentQueue<pbf::PbfBlobData>* CreateProcessQueue() {
+  Concurrent_T* CreateProcessQueue() {
     auto ptr = queue_shard_.allocate(1);
     if (!ptr) return nullptr;
 
@@ -90,7 +91,7 @@ class OsmPbfReader {
     return ptr;
   }
 
-  bool DestroyProcessQueue(core::ConcurrentQueue<pbf::PbfBlobData>* ptr) {
+  bool DestroyProcessQueue(Concurrent_T* ptr) {
     if (!ptr) return false;
 
     queue_shard_.destroy(ptr);
@@ -135,28 +136,23 @@ class OsmPbfReader {
     // #endif
   }
 
-  void ProcessBlockTokenizer(
-      uint16_t worker_id, uint16_t max_pending_processing,
-      std::vector<core::ConcurrentQueue<pbf::PbfBlobData>*>&& queue_shard_ptr) {
-    auto pq_ptr =
-        std::forward<std::vector<core::ConcurrentQueue<pbf::PbfBlobData>*>>(
-            queue_shard_ptr);
+  void ProcessBlockTokenizer(uint16_t worker_id,
+                             uint16_t max_pending_processing,
+                             std::vector<Concurrent_T*>&& queue_shard_ptr) {
+    auto pq_ptr = std::forward<std::vector<Concurrent_T*>>(queue_shard_ptr);
 
     stream_.OnFinished(
         [this](pbf::PbfTokenizer* sender, core::StreamState state) {
-          // absl::MutexLock lock(&mu_worker_);
-
+          
           while (tasks_created_.Value() > tasks_finished_.Value()) {
             cv_main_worker_.WaitWithTimeout(&mu_worker_,
                                             absl::Duration(absl::Seconds(1)));
 
             auto c = tasks_created_.Value();
             auto f = tasks_finished_.Value();
-            auto p = (static_cast<float>(f) / static_cast<float>(c))*100.0;
+            auto p = (static_cast<float>(f) / static_cast<float>(c)) * 100.0;
             std::cout << "Tasks " << f << "/" << c << std::fixed
-                      << std::setprecision(1) << " ["
-                      << p << "%]"
-                      << std::endl;
+                      << std::setprecision(1) << " [" << p << "%]" << std::endl;
           }
 
           std::cout << "PROCESSING FINISHED" << std::endl;
@@ -185,22 +181,10 @@ class OsmPbfReader {
     {
       absl::MutexLock lock(&mu_worker_);
       stream_.Start(verbose_);
-      std::cout << "TOKENIZER FINISHED:" << worker_id << std::endl;
-      // stream_.OnDataReadyUnregister();
     }
   }
 
-  void CheckForTaskFinished() {
-    // cv_main_worker_.SignalAll();
-    // if (tasks_dispatched_.Value() == tasks_finished_.Value()) {
-    //   // std::cout << "ALL DONE" << std::endl;
-    //   should_stop_ = true;
-    //   cv_processing_.SignalAll();
-    //}
-  }
-
-  void ProcessOsmPbfBlob(uint16_t worker_id,
-                         core::ConcurrentQueue<pbf::PbfBlobData>* queue) {
+  void ProcessOsmPbfBlob(uint16_t worker_id, Concurrent_T* queue) {
     WaitForAllThreadsToBeReady();
     {
       absl::MutexLock lock(&mu_);
@@ -209,13 +193,12 @@ class OsmPbfReader {
       DebugCondVar(worker_id, should_stop_, "BLOB-PROC");
 
       while (true) {
-        CheckForTaskFinished();
         if (queue->Empty() && is_run_ && !should_stop_) {
           DebugCondVar(worker_id, should_stop_, "WAITJOB");
           cv_processing_.Wait(&mu_);
         }
 
-        if(should_stop_){
+        if (should_stop_) {
           break;
         }
 
@@ -342,8 +325,7 @@ class OsmPbfReader {
       return state;
     }
 
-    std::vector<core::ConcurrentQueue<pbf::PbfBlobData>*>
-        processing_ptr_for_main_worker;
+    std::vector<Concurrent_T*> processing_ptr_for_main_worker;
 
     for (auto i = 0; i < process_worker_num_; i++) {
       auto qptr = CreateProcessQueue();
