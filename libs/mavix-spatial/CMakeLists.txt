@@ -65,8 +65,9 @@ file(GLOB_RECURSE SOURCES_MAVIX_SPATIAL CONFIGURE_DEPENDS
 
 add_library(${PROJECT_NAME} ${SOURCES_MAVIX_SPATIAL} )
 target_link_libraries(${PROJECT_NAME} 
-    nvm-core
     mavix-core-v1
+    mavix-utils-v1
+    nvm-core
     )
 
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
